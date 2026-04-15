@@ -1,0 +1,13 @@
+type_identite (id, libelle, description)
+statut_demande (id, libelle, ordre)
+
+identite (id, type_identite_id, nom, prenom, situation_familiale, ...)
+passeport (id, identite_id, ...)
+visa_transformable (id, identite_id, ...)
+demande_titre (id, identite_id, statut_id, visa_id, ...)
+
+piece_commune (id, nom_piece)
+piece_complementaire (id, type_identite_id, nom_piece, obligatoire)
+
+demande_piece_commune_fournie (demande_id, piece_commune_id, fourni, ...)
+demande_piece_complementaire_fournie (demande_id, piece_complementaire_id, fourni, ...)
