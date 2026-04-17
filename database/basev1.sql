@@ -9,11 +9,10 @@
 -- ============================================================
 
 CREATE TYPE statut_dossier AS ENUM (
-    'brouillon',
-    'soumis',
-    'en_instruction',
+    'creer',
     'valide',
-    'rejete'
+    'rejete',
+    'approuve'
 );
 
 CREATE TYPE statut_piece AS ENUM (
@@ -40,15 +39,28 @@ INSERT INTO type_identite (code, libelle) VALUES
 
 
 -- ============================================================
--- 2. PERSONNE
+-- 2. demandeur
 -- ============================================================
+CREATE TABLE nationalite (
+    id              SERIAL       PRIMARY KEY,
+    code        VARCHAR(50)  NOT NULL UNIQUE,
+    libelle         VARCHAR(100) NOT NULL
+    
+);
+CREATE TABLE situation_famialiale (
+    id              SERIAL       PRIMARY KEY,
+    libelle         VARCHAR(100) NOT NULL
+    
+);
 
-CREATE TABLE personne (
+
+CREATE TABLE demandeur (
     id              SERIAL       PRIMARY KEY,
     nom             VARCHAR(100) NOT NULL,
     prenom          VARCHAR(100) NOT NULL,
     date_naissance  DATE         NOT NULL,
-    nationalite     VARCHAR(100) NOT NULL,
+    nationalite_id  INT         NOT NULL REFERENCES nationalite(id),
+    situation_famialiale_id  INT         NOT NULL REFERENCES situation_famialiale(id),
     email           VARCHAR(150),
     telephone       VARCHAR(30),
     adresse_mada    TEXT
@@ -61,9 +73,9 @@ CREATE TABLE personne (
 
 CREATE TABLE passeport (
     id              SERIAL      PRIMARY KEY,
-    personne_id     INT         NOT NULL REFERENCES personne(id),
+    demandeur_id     INT         NOT NULL REFERENCES demandeur(id),
     numero          VARCHAR(50) NOT NULL UNIQUE,
-    pays_delivrance VARCHAR(100),
+    pays_delivrance_id INT         NOT NULL REFERENCES nationalite(id),
     date_delivrance DATE        NOT NULL,
     date_expiration DATE        NOT NULL
 );
@@ -89,10 +101,10 @@ CREATE TABLE visa_transformable (
 
 CREATE TABLE dossier (
     id                    SERIAL          PRIMARY KEY,
-    personne_id           INT             NOT NULL REFERENCES personne(id),
+    demandeur_id           INT             NOT NULL REFERENCES demandeur(id),
     type_identite_id      INT             NOT NULL REFERENCES type_identite(id),
     visa_transformable_id INT             REFERENCES visa_transformable(id),
-    statut                statut_dossier  NOT NULL DEFAULT 'brouillon',
+    statut                statut_dossier  NOT NULL DEFAULT 'creer',
     created_at            DATE            NOT NULL DEFAULT CURRENT_DATE
 );
 
@@ -121,7 +133,7 @@ INSERT INTO catalogue_piece_commune (code, libelle, ordre) VALUES
 
 
 -- ============================================================
--- 7. PIÈCES COMMUNES PAR DOSSIER (suivi / checkbox)
+-- 7. PIÈCES COMMUNES PAR DOSSIER 
 -- ============================================================
 
 CREATE TABLE dossier_piece_commune (

@@ -8,7 +8,5 @@
 
     <nav class="sidebar__nav">
         <a class="sidebar__link" href="<c:url value='/'/>">Accueil</a>
-        <a class="sidebar__link" href="<c:url value='/api/personnes'/>">API Personnes</a>
-        <a class="sidebar__link" href="<c:url value='/api/dossiers'/>">API Dossiers</a>
     </nav>
 </aside>
