@@ -1,6 +1,7 @@
 package com.mada.visa_mg.controller;
 
 import com.mada.visa_mg.dto.DossierCreationDTO;
+import com.mada.visa_mg.dto.DossierListDTO;
 import com.mada.visa_mg.dto.DossierPiecesDTO;
 import com.mada.visa_mg.entity.*;
 import com.mada.visa_mg.entity.ref.StatutDossier;
@@ -20,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/dossiers")
@@ -78,8 +80,8 @@ public class DossierController {
         TypeDemande typeDemande = typeDemandeRepository.findById(dto.getTypeDemandeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "typeDemandeId invalide"));
 
-        StatutDossier brouillon = statutDossierRepository.findByCode("BROUILLON")
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut BROUILLON manquant"));
+        StatutDossier creer = statutDossierRepository.findByCode("CREER")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut CREER manquant"));
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -88,7 +90,7 @@ public class DossierController {
                 .visaTransformable(visaTransformable)
                 .typeIdentite(typeIdentite)
                 .typeDemande(typeDemande)
-                .statutDossier(brouillon)
+                .statutDossier(creer)
                 .dateDemande(LocalDate.now())
                 .createdAt(now)
                 .updatedAt(now)
@@ -134,5 +136,56 @@ public class DossierController {
         List<DossierPieceComplementaire> complementaires = dossierPieceComplementaireRepository.findByDossierId(id);
 
         return new DossierPiecesDTO(communes, complementaires);
+    }
+
+    @GetMapping
+    public List<DossierListDTO> getAllDossiers() {
+        List<DossierListDTO> result = new ArrayList<>();
+        
+        List<Dossier> dossiers = dossierRepository.findAll();
+        for (Dossier d : dossiers) {
+            result.add(DossierListDTO.builder()
+                .id(d.getId())
+                .demandeur(d.getDemandeur())
+                .createdAt(d.getCreatedAt())
+                .statutCode(d.getStatutDossier().getCode())
+                .statutLibelle(d.getStatutDossier().getLibelle())
+                .build()
+            );
+        }
+
+        // Identifier les brouillons (Demandeurs qui n'ont pas encore de dossier complet)
+        List<Demandeur> demandeurs = demandeurRepository.findAll();
+        for (Demandeur dem : demandeurs) {
+            boolean hasDossier = dossiers.stream().anyMatch(d -> d.getDemandeur().getId().equals(dem.getId()));
+            if (!hasDossier) {
+                // Vérifier si le demandeur a au moins un Visa
+                boolean hasVisa = visaTransformableRepository.findAll().stream()
+                        .anyMatch(v -> v.getDemandeur().getId().equals(dem.getId()));
+                
+                if (hasVisa) {
+                    result.add(DossierListDTO.builder()
+                        .id(dem.getId()) // ID du demandeur servant de référence
+                        .demandeur(dem)
+                        .createdAt(dem.getCreatedAt())
+                        .statutCode("BROUILLON")
+                        .statutLibelle("Brouillon (Étape 3)")
+                        .stepToContinue(3)
+                        .build()
+                    );
+                } else {
+                    result.add(DossierListDTO.builder()
+                        .id(dem.getId()) // ID du demandeur
+                        .demandeur(dem)
+                        .createdAt(dem.getCreatedAt())
+                        .statutCode("BROUILLON")
+                        .statutLibelle("Brouillon (Étape 2)")
+                        .stepToContinue(2)
+                        .build()
+                    );
+                }
+            }
+        }
+        return result;
     }
 }

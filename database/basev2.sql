@@ -78,8 +78,7 @@ CREATE TABLE statut_demande (
 );
 INSERT INTO statut_demande (code, libelle) VALUES
     ('BROUILLON',    'Brouillon'),
-    ('SOUMISE',      'Soumise'),
-    ('EN_COURS',     'En cours d''instruction'),
+    ('CREER',      'Créer'),
     ('APPROUVEE',    'Approuvée'),
     ('REJETEE',      'Rejetée');
 
@@ -220,7 +219,7 @@ CREATE TABLE catalogue_piece_commune (
     libelle TEXT        NOT NULL
 );
 INSERT INTO catalogue_piece_commune (code, libelle) VALUES
-    ('PHOTO_ID',        '02 photos d''identité récentes'),
+    ('PHOTO_ID',        '01 photos d''identité récentes'),
     ('NOTICE_RENS',     'Notice de renseignement'),
     ('DEMANDE_MIN',     'Demande adressée au Ministre de l''Intérieur (avec adresse email et téléphone portable)'),
     ('COPIE_VISA',      'Photocopie certifiée du visa en cours de validité'),
