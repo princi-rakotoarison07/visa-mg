@@ -41,6 +41,17 @@ public class DemandeurController {
         SituationFamiliale situationFamiliale = situationFamilialeRepository.findById(dto.getSituationFamilialeId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "situationFamilialeId invalide"));
 
+        // Vérifier si un demandeur avec le même nom, prénom et date de naissance existe déjà
+        java.util.Optional<Demandeur> existingDemandeur = demandeurRepository.findAll().stream()
+                .filter(d -> d.getNom().equalsIgnoreCase(dto.getNom()) && 
+                             d.getPrenom().equalsIgnoreCase(dto.getPrenom()) &&
+                             d.getDateNaissance().equals(dto.getDateNaissance()))
+                .findFirst();
+                
+        if (existingDemandeur.isPresent()) {
+            return existingDemandeur.get();
+        }
+
         Demandeur demandeur = Demandeur.builder()
                 .nom(dto.getNom())
                 .prenom(dto.getPrenom())

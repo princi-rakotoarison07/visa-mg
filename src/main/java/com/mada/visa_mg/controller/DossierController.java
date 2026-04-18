@@ -160,10 +160,11 @@ public class DossierController {
             boolean hasDossier = dossiers.stream().anyMatch(d -> d.getDemandeur().getId().equals(dem.getId()));
             if (!hasDossier) {
                 // Vérifier si le demandeur a au moins un Visa
-                boolean hasVisa = visaTransformableRepository.findAll().stream()
-                        .anyMatch(v -> v.getDemandeur().getId().equals(dem.getId()));
+                java.util.Optional<VisaTransformable> optVisa = visaTransformableRepository.findAll().stream()
+                        .filter(v -> v.getDemandeur().getId().equals(dem.getId()))
+                        .findFirst();
                 
-                if (hasVisa) {
+                if (optVisa.isPresent()) {
                     result.add(DossierListDTO.builder()
                         .id(dem.getId()) // ID du demandeur servant de référence
                         .demandeur(dem)
@@ -171,6 +172,7 @@ public class DossierController {
                         .statutCode("BROUILLON")
                         .statutLibelle("Brouillon (Étape 3)")
                         .stepToContinue(3)
+                        .visaIdToContinue(optVisa.get().getId())
                         .build()
                     );
                 } else {

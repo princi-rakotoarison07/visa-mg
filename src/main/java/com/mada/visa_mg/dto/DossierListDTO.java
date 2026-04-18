@@ -19,4 +19,5 @@ public class DossierListDTO {
     private String statutCode;
     private String statutLibelle;
     private Integer stepToContinue;
+    private Integer visaIdToContinue;
 }

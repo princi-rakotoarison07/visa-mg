@@ -152,6 +152,19 @@
         const stepDiv = document.getElementById('step-' + stepNum);
         const inputs = stepDiv.querySelectorAll('input[required], select[required], textarea[required]');
         let isValid = true;
+        
+        // Retirer l'attribut required des champs cachés pour éviter les erreurs "An invalid form control is not focusable"
+        document.querySelectorAll('.step:not(.active) input[required], .step:not(.active) select[required], .step:not(.active) textarea[required]').forEach(input => {
+            input.removeAttribute('required');
+            input.setAttribute('data-was-required', 'true');
+        });
+        
+        // Remettre l'attribut required sur les champs de l'étape active
+        stepDiv.querySelectorAll('[data-was-required="true"]').forEach(input => {
+            input.setAttribute('required', 'required');
+            input.removeAttribute('data-was-required');
+        });
+
         inputs.forEach(input => {
             if (!input.checkValidity() || input.value.trim() === '') {
                 input.classList.add('input-error');
@@ -174,7 +187,7 @@
         if (!validateStep(current)) return;
 
         // Etape 1: Sauvegarde du demandeur
-        if (current === 1 && !currentDemandeurId) {
+        if (current === 1) {
             const demandeurDTO = {
                 nom: document.getElementById('nom').value,
                 prenom: document.getElementById('prenom').value,
@@ -199,7 +212,7 @@
         }
 
         // Etape 2 : Sauvegarde du passeport et visa
-        if (current === 2 && !currentVisaId) {
+        if (current === 2) {
             const passeportDTO = {
                 demandeurId: currentDemandeurId,
                 numeroPasseport: document.getElementById('numeroPasseport').value,
@@ -243,6 +256,9 @@
         document.getElementById('step-' + next).classList.add('active');
         document.getElementById('indicator-' + current).style.fontWeight = 'normal';
         document.getElementById('indicator-' + next).style.fontWeight = 'bold';
+        
+        // Mettre à jour les champs required
+        validateStep(next);
     }
 
     function prevStep(current, prev) {
@@ -250,6 +266,9 @@
         document.getElementById('step-' + prev).classList.add('active');
         document.getElementById('indicator-' + current).style.fontWeight = 'normal';
         document.getElementById('indicator-' + prev).style.fontWeight = 'bold';
+        
+        // Mettre à jour les champs required
+        validateStep(prev);
     }
 
     function updateChecklist() {
@@ -280,6 +299,48 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const stepToContinue = urlParams.get('step');
+        const demandeurIdToContinue = urlParams.get('id');
+        const visaIdToContinue = urlParams.get('visaId');
+
+        if (!stepToContinue) {
+            // Initialisation normale pour une nouvelle demande (étape 1)
+            validateStep(1);
+        }
+
+        if (stepToContinue && demandeurIdToContinue) {
+            currentDemandeurId = parseInt(demandeurIdToContinue);
+            if (visaIdToContinue) {
+                currentVisaId = parseInt(visaIdToContinue);
+            }
+            // Aller à l'étape demandée
+            document.getElementById('step-1').classList.remove('active');
+            document.getElementById('indicator-1').style.fontWeight = 'normal';
+            
+            document.getElementById('step-' + stepToContinue).classList.add('active');
+            document.getElementById('indicator-' + stepToContinue).style.fontWeight = 'bold';
+            
+            // Initialiser les champs required pour l'étape active
+            validateStep(stepToContinue);
+            
+            // Récupérer les données du demandeur pour pré-remplir (et éviter de recréer si on revient à l'étape 1)
+            fetch('/api/demandeurs/' + currentDemandeurId)
+                .then(r => r.json())
+                .then(dem => {
+                    document.getElementById('nom').value = dem.nom || '';
+                    document.getElementById('prenom').value = dem.prenom || '';
+                    if(dem.dateNaissance) document.getElementById('dateNaissance').value = dem.dateNaissance.substring(0, 10);
+                    document.getElementById('lieuNaissance').value = dem.lieuNaissance || '';
+                    document.getElementById('telephone').value = dem.telephone || '';
+                    document.getElementById('email').value = dem.email || '';
+                    document.getElementById('adresse').value = dem.adresse || '';
+                    if(dem.nationalite) document.getElementById('nationalite_id').value = dem.nationalite.id;
+                    if(dem.situationFamiliale) document.getElementById('situation_familiale_id').value = dem.situationFamiliale.id;
+                })
+                .catch(e => console.error('Erreur récupération demandeur', e));
+        }
+
         fetch('/api/ref/nationalites').then(r => r.json()).then(data => {
             const selectNat = document.getElementById('nationalite_id');
             const selectPays = document.getElementById('pays_delivrance_id');

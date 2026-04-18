@@ -62,15 +62,19 @@ document.addEventListener("DOMContentLoaded", function() {
           dossiers.forEach(d => {
               const dateCreation = d.createdAt ? d.createdAt.substring(0, 10) : (d.dateDemande || '-');
               const nom = d.demandeur ? d.demandeur.nom + ' ' + d.demandeur.prenom : 'Identité inconnue';
-              const statut = d.statutDossier ? d.statutDossier.code : 'INCONNU';
-              const statutTexte = d.statutDossier ? d.statutDossier.libelle : statut;
+              const statut = d.statutCode ? d.statutCode : 'INCONNU';
+              const statutTexte = d.statutLibelle ? d.statutLibelle : statut;
               
               let badgeClass = 'badge ';
               let actionLink = '';
               
               if (statut === 'BROUILLON') {
                  badgeClass += 'brouillon';
-                 actionLink = '<a href="/demande/nouveau?id=' + d.id + '&step=' + d.stepToContinue + '" class="btn-continuer">Continuer</a>';
+                 let urlNouveau = '/demande/nouveau?id=' + d.id + '&step=' + d.stepToContinue;
+                 if (d.visaIdToContinue) {
+                     urlNouveau += '&visaId=' + d.visaIdToContinue;
+                 }
+                 actionLink = '<a href="' + urlNouveau + '" class="btn-continuer">Continuer</a>';
               } else if (statut === 'CREER') {
                  badgeClass += 'soumise';
                  actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff;">Voir détail</a>';

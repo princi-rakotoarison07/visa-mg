@@ -39,6 +39,15 @@ public class PasseportController {
         Nationalite paysDelivrance = nationaliteRepository.findById(dto.getPaysDelivranceId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "paysDelivranceId invalide"));
 
+        // Vérifier si un passeport existe déjà pour ce demandeur
+        java.util.Optional<Passeport> existingPasseport = passeportRepository.findAll().stream()
+                .filter(p -> p.getDemandeur().getId().equals(demandeur.getId()))
+                .findFirst();
+                
+        if (existingPasseport.isPresent()) {
+            return existingPasseport.get();
+        }
+
         Passeport passeport = Passeport.builder()
                 .demandeur(demandeur)
                 .numeroPasseport(dto.getNumeroPasseport())

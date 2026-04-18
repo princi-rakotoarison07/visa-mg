@@ -38,6 +38,15 @@ public class VisaTransformableController {
 
         Passeport passeport = passeportRepository.findById(dto.getPasseportId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "passeportId invalide"));
+        
+        // Vérifier si un visa transformable existe déjà pour ce passeport/demandeur pour éviter les doublons
+        java.util.Optional<VisaTransformable> existingVisa = visaTransformableRepository.findAll().stream()
+                .filter(v -> v.getDemandeur().getId().equals(demandeur.getId()))
+                .findFirst();
+                
+        if (existingVisa.isPresent()) {
+            return existingVisa.get();
+        }
 
         VisaTransformable visa = VisaTransformable.builder()
                 .demandeur(demandeur)
