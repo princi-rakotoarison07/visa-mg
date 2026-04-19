@@ -13,7 +13,16 @@
         .error { color: red; font-size: 0.8rem; display: none; }
         .input-error { border: 1px solid red; }
         .checklist { margin-top: 15px; }
-        .checklist-item { margin-bottom: 5px; }
+        .checklist-item { margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .checklist-item label { font-weight: bold; }
+        .upload-row { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+        .upload-status { font-size: 0.85rem; padding: 2px 8px; border-radius: 3px; }
+        .upload-status.success { background: #d4edda; color: #155724; }
+        .upload-status.pending { background: #fff3cd; color: #856404; }
+        .doc-section { border: 1px solid #ccc; padding: 15px; margin-top: 10px; border-radius: 5px; background: #f9f9f9; }
+        .doc-section h4 { margin-top: 0; }
+        .checkbox-group { margin-bottom: 10px; }
+        .checkbox-group label { cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -123,7 +132,7 @@
                     <button type="button" onclick="nextStep(2, 3)">Suivant</button>
                 </div>
 
-                <!-- ETAPE 3: Type de Titre et Récapitulatif -->
+                <!-- ETAPE 3: Type de Titre + Upload Pièces Complémentaires -->
                 <div id="step-3" class="step">
                     <h2>Étape 3 : Type de Titre et Pièces Justificatives</h2>
                     <div class="form-group">
@@ -134,8 +143,10 @@
                     </div>
 
                     <div id="checklist-container" class="checklist" style="display:none;">
-                        <h3>Pièces obligatoires à fournir</h3>
+                        <h3>Pièces communes à fournir</h3>
                         <div id="list-obligatoire"></div>
+
+                        <h3 id="pieces-comp-title" style="display:none;">Pièces complémentaires obligatoires (upload justificatif requis)</h3>
                         <div id="pieces-complementaires"></div>
                     </div>
 
@@ -144,28 +155,55 @@
                     <button type="button" onclick="nextStep(3, 4)">Suivant</button>
                 </div>
 
-                <!-- ETAPE 4: Duplicata Final -->
+                <!-- ETAPE 4: Duplicata — Choix Visa et/ou Carte Résident -->
                 <div id="step-4" class="step">
-                    <h2>Étape 4 : Saisie du document à récupérer</h2>
-                    <div class="form-group">
-                        <label>Type de Document *</label>
-                        <select id="type_document" name="type_document" required>
-                            <option value="">Sélectionner</option>
-                            <option value="VISA">Visa</option>
-                            <option value="CARTE_RESIDENT">Carte de Résident</option>
-                        </select>
+                    <h2>Étape 4 : Documents à récupérer</h2>
+                    <p><em>Cochez le(s) document(s) à reconstituer. Vous pouvez sélectionner les deux.</em></p>
+
+                    <!-- Checkbox Visa -->
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="chk_visa" onchange="toggleDocSection('visa')" />
+                            Visa
+                        </label>
                     </div>
-                    <div class="form-group">
-                        <label>Numéro de référence (depuis photocopie) *</label>
-                        <input type="text" id="ref_document" name="ref_document" required />
+                    <div id="section_visa" class="doc-section" style="display:none;">
+                        <h4>Informations du Visa</h4>
+                        <div class="form-group">
+                            <label>Numéro de référence (depuis photocopie) *</label>
+                            <input type="text" id="ref_visa" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date de début *</label>
+                            <input type="date" id="date_debut_visa" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date de fin *</label>
+                            <input type="date" id="date_fin_visa" />
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Date de début *</label>
-                        <input type="date" id="date_debut_document" name="date_debut_document" required />
+
+                    <!-- Checkbox Carte Résident -->
+                    <div class="checkbox-group" style="margin-top: 15px;">
+                        <label>
+                            <input type="checkbox" id="chk_carte" onchange="toggleDocSection('carte')" />
+                            Carte de Résident
+                        </label>
                     </div>
-                    <div class="form-group">
-                        <label>Date de fin *</label>
-                        <input type="date" id="date_fin_document" name="date_fin_document" required />
+                    <div id="section_carte" class="doc-section" style="display:none;">
+                        <h4>Informations de la Carte de Résident</h4>
+                        <div class="form-group">
+                            <label>Numéro de référence (depuis photocopie) *</label>
+                            <input type="text" id="ref_carte" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date de début *</label>
+                            <input type="date" id="date_debut_carte" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date de fin *</label>
+                            <input type="date" id="date_fin_carte" />
+                        </div>
                     </div>
 
                     <br/>
@@ -178,17 +216,21 @@
 </div>
 
 <script>
+    // ========== Stockage des fichiers uploadés ==========
+    // Map : catalogueComplementaireId -> fichierPath (retourné par le serveur)
+    const uploadedFiles = {};
+
     function validateStep(stepNum) {
         const stepDiv = document.getElementById('step-' + stepNum);
         const inputs = stepDiv.querySelectorAll('input[required], select[required], textarea[required]');
         let isValid = true;
-        
-        // Retirer l'attribut required des champs cachés pour éviter les erreurs "An invalid form control is not focusable"
+
+        // Retirer l'attribut required des champs cachés
         document.querySelectorAll('.step:not(.active) input[required], .step:not(.active) select[required], .step:not(.active) textarea[required]').forEach(input => {
             input.removeAttribute('required');
             input.setAttribute('data-was-required', 'true');
         });
-        
+
         // Remettre l'attribut required sur les champs de l'étape active
         stepDiv.querySelectorAll('[data-was-required="true"]').forEach(input => {
             input.setAttribute('required', 'required');
@@ -203,8 +245,8 @@
                 input.classList.remove('input-error');
             }
         });
-        if(!isValid) {
-            alert('Veuillez remplir correctement tous les champs obligatoires (ex: adresse email au bon format).');
+        if (!isValid) {
+            alert('Veuillez remplir correctement tous les champs obligatoires.');
         }
         return isValid;
     }
@@ -282,11 +324,27 @@
             } catch(e) { alert("Erreur réseau Visa"); return; }
         }
 
+        // Etape 3 : Vérifier que toutes les pièces complémentaires ont un fichier uploadé
+        if (current === 3) {
+            const typeVisa = document.getElementById('type_visa_id').value;
+            if (typeVisa && window.piecesComplementaires) {
+                const piecesFiltered = window.piecesComplementaires.filter(
+                    p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)
+                );
+                for (const p of piecesFiltered) {
+                    if (!uploadedFiles[p.id]) {
+                        alert('Veuillez uploader le justificatif pour : ' + p.libelle);
+                        return;
+                    }
+                }
+            }
+        }
+
         document.getElementById('step-' + current).classList.remove('active');
         document.getElementById('step-' + next).classList.add('active');
         document.getElementById('indicator-' + current).style.fontWeight = 'normal';
         document.getElementById('indicator-' + next).style.fontWeight = 'bold';
-        
+
         // Mettre à jour les champs required
         validateStep(next);
     }
@@ -296,38 +354,105 @@
         document.getElementById('step-' + prev).classList.add('active');
         document.getElementById('indicator-' + current).style.fontWeight = 'normal';
         document.getElementById('indicator-' + prev).style.fontWeight = 'bold';
-        
+
         // Mettre à jour les champs required
         validateStep(prev);
     }
 
+    // ========== Toggle pour les sections de document (Étape 4) ==========
+    function toggleDocSection(type) {
+        if (type === 'visa') {
+            const checked = document.getElementById('chk_visa').checked;
+            document.getElementById('section_visa').style.display = checked ? 'block' : 'none';
+        } else if (type === 'carte') {
+            const checked = document.getElementById('chk_carte').checked;
+            document.getElementById('section_carte').style.display = checked ? 'block' : 'none';
+        }
+    }
+
+    // ========== Upload fichier complémentaire ==========
+    async function uploadPieceComplementaire(catalogueId, fileInput) {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const statusSpan = document.getElementById('upload-status-' + catalogueId);
+        statusSpan.textContent = 'Envoi en cours...';
+        statusSpan.className = 'upload-status pending';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/uploads', {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                uploadedFiles[catalogueId] = data.fichierPath;
+                statusSpan.textContent = '✓ Fichier uploadé';
+                statusSpan.className = 'upload-status success';
+            } else {
+                statusSpan.textContent = '✗ Erreur upload';
+                statusSpan.className = 'upload-status pending';
+                alert("Erreur lors de l'upload : " + await res.text());
+            }
+        } catch(e) {
+            statusSpan.textContent = '✗ Erreur réseau';
+            statusSpan.className = 'upload-status pending';
+        }
+    }
+
+    // ========== Mise à jour de la checklist (Étape 3) ==========
     function updateChecklist() {
         const typeVisa = document.getElementById('type_visa_id').value;
         const container = document.getElementById('checklist-container');
         const listObligatoire = document.getElementById('list-obligatoire');
         const comp = document.getElementById('pieces-complementaires');
+        const compTitle = document.getElementById('pieces-comp-title');
         listObligatoire.innerHTML = '';
         comp.innerHTML = '';
 
         if (typeVisa) {
             container.style.display = 'block';
 
+            // Pièces communes (juste checklist informative)
             if (window.piecesCommunes) {
                 window.piecesCommunes.forEach(p => {
                     listObligatoire.innerHTML += '<div class="checklist-item"><input type="checkbox" /> ' + p.libelle + '</div>';
                 });
             }
 
+            // Pièces complémentaires avec upload obligatoire
             if (window.piecesComplementaires) {
-                window.piecesComplementaires.filter(p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)).forEach(p => {
-                    comp.innerHTML += '<div class="checklist-item"><input type="checkbox" /> ' + p.libelle + '</div>';
-                });
+                const piecesFiltered = window.piecesComplementaires.filter(
+                    p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)
+                );
+
+                if (piecesFiltered.length > 0) {
+                    compTitle.style.display = 'block';
+                    piecesFiltered.forEach(p => {
+                        comp.innerHTML +=
+                            '<div class="checklist-item">' +
+                            '  <label>' + p.libelle + '</label>' +
+                            '  <div class="upload-row">' +
+                            '    <input type="file" id="file-comp-' + p.id + '" accept=".pdf,.jpg,.jpeg,.png" ' +
+                            '           onchange="uploadPieceComplementaire(' + p.id + ', this)" />' +
+                            '    <span id="upload-status-' + p.id + '" class="upload-status pending">Non fourni</span>' +
+                            '  </div>' +
+                            '</div>';
+                    });
+                } else {
+                    compTitle.style.display = 'none';
+                }
             }
         } else {
             container.style.display = 'none';
+            compTitle.style.display = 'none';
         }
     }
 
+    // ========== Initialisation ==========
     document.addEventListener("DOMContentLoaded", function() {
         const urlParams = new URLSearchParams(window.location.search);
         const stepToContinue = urlParams.get('step');
@@ -335,7 +460,6 @@
         const visaIdToContinue = urlParams.get('visaId');
 
         if (!stepToContinue) {
-            // Initialisation normale pour une nouvelle demande (étape 1)
             validateStep(1);
         }
 
@@ -344,17 +468,14 @@
             if (visaIdToContinue) {
                 currentVisaId = parseInt(visaIdToContinue);
             }
-            // Aller à l'étape demandée
             document.getElementById('step-1').classList.remove('active');
             document.getElementById('indicator-1').style.fontWeight = 'normal';
-            
+
             document.getElementById('step-' + stepToContinue).classList.add('active');
             document.getElementById('indicator-' + stepToContinue).style.fontWeight = 'bold';
-            
-            // Initialiser les champs required pour l'étape active
+
             validateStep(stepToContinue);
-            
-            // Récupérer les données du demandeur pour pré-remplir (et éviter de recréer si on revient à l'étape 1)
+
             fetch('/api/demandeurs/' + currentDemandeurId)
                 .then(r => r.json())
                 .then(dem => {
@@ -403,18 +524,60 @@
         }).catch(e => console.error(e));
     });
 
+    // ========== Soumission finale ==========
     async function submitForm(e) {
         e.preventDefault();
-        if (!validateStep(4)) return false;
+
+        // Vérifier qu'au moins un document est coché
+        const visaChecked = document.getElementById('chk_visa').checked;
+        const carteChecked = document.getElementById('chk_carte').checked;
+
+        if (!visaChecked && !carteChecked) {
+            alert('Veuillez sélectionner au moins un type de document (Visa et/ou Carte de Résident).');
+            return false;
+        }
+
+        // Construire la liste des documents
+        const documents = [];
+
+        if (visaChecked) {
+            const ref = document.getElementById('ref_visa').value.trim();
+            const debut = document.getElementById('date_debut_visa').value;
+            const fin = document.getElementById('date_fin_visa').value;
+            if (!ref || !debut || !fin) {
+                alert('Veuillez remplir tous les champs du Visa.');
+                return false;
+            }
+            documents.push({
+                typeDocument: 'VISA',
+                referenceDocument: ref,
+                dateDebutDocument: debut,
+                dateFinDocument: fin
+            });
+        }
+
+        if (carteChecked) {
+            const ref = document.getElementById('ref_carte').value.trim();
+            const debut = document.getElementById('date_debut_carte').value;
+            const fin = document.getElementById('date_fin_carte').value;
+            if (!ref || !debut || !fin) {
+                alert('Veuillez remplir tous les champs de la Carte de Résident.');
+                return false;
+            }
+            documents.push({
+                typeDocument: 'CARTE_RESIDENT',
+                referenceDocument: ref,
+                dateDebutDocument: debut,
+                dateFinDocument: fin
+            });
+        }
 
         const duplicataDTO = {
             demandeurId: currentDemandeurId,
             visaTransformableId: currentVisaId,
             typeIdentiteId: parseInt(document.getElementById('type_visa_id').value),
-            typeDocument: document.getElementById('type_document').value,
-            referenceDocument: document.getElementById('ref_document').value,
-            dateDebutDocument: document.getElementById('date_debut_document').value,
-            dateFinDocument: document.getElementById('date_fin_document').value
+            documents: documents,
+            piecesComplementairesFichiers: uploadedFiles
         };
 
         try {
@@ -426,7 +589,10 @@
 
             if (response.ok) {
                 const dossier = await response.json();
-                alert("Félicitations, le duplicata a été créé et approuvé avec succès ! (Dossier ID: " + dossier.id + ")");
+                let msg = "Félicitations, le duplicata a été créé et approuvé avec succès !\n(Dossier ID: " + dossier.id + ")\n\nDocuments créés : ";
+                if (visaChecked) msg += "Visa ";
+                if (carteChecked) msg += "Carte de Résident ";
+                alert(msg);
                 window.location.href = "/demande/liste";
             } else {
                 const err = await response.text();

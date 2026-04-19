@@ -167,33 +167,38 @@ public class DossierController {
 
         dossier = dossierRepository.save(dossier);
 
-        // Création du document final
-        if ("VISA".equals(dto.getTypeDocument())) {
-            Visa visa = Visa.builder()
-                    .dossier(dossier)
-                    .passeport(visaTransformable.getPasseport())
-                    .reference(dto.getReferenceDocument())
-                    .dateDebut(dto.getDateDebutDocument())
-                    .dateFin(dto.getDateFinDocument())
-                    .createdAt(now)
-                    .build();
-            visaRepository.save(visa);
-        } else if ("CARTE_RESIDENT".equals(dto.getTypeDocument())) {
-            CarteResident carte = CarteResident.builder()
-                    .dossier(dossier)
-                    .passeport(visaTransformable.getPasseport())
-                    .reference(dto.getReferenceDocument())
-                    .dateDebut(dto.getDateDebutDocument())
-                    .dateFin(dto.getDateFinDocument())
-                    .createdAt(now)
-                    .build();
-            carteResidentRepository.save(carte);
+        // Création des documents finaux (Visa et/ou Carte Résident)
+        for (DuplicataCreationDTO.DocumentDuplicataDTO doc : dto.getDocuments()) {
+            if ("VISA".equals(doc.getTypeDocument())) {
+                Visa visa = Visa.builder()
+                        .dossier(dossier)
+                        .passeport(visaTransformable.getPasseport())
+                        .reference(doc.getReferenceDocument())
+                        .dateDebut(doc.getDateDebutDocument())
+                        .dateFin(doc.getDateFinDocument())
+                        .createdAt(now)
+                        .build();
+                visaRepository.save(visa);
+            } else if ("CARTE_RESIDENT".equals(doc.getTypeDocument())) {
+                CarteResident carte = CarteResident.builder()
+                        .dossier(dossier)
+                        .passeport(visaTransformable.getPasseport())
+                        .reference(doc.getReferenceDocument())
+                        .dateDebut(doc.getDateDebutDocument())
+                        .dateFin(doc.getDateFinDocument())
+                        .createdAt(now)
+                        .build();
+                carteResidentRepository.save(carte);
+            }
         }
 
-        // Création des pièces (comme NON_FOURNI, car il devra uploader les photocopies dans le Sprint 3)
+        // Statuts des pièces
         StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
+        StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
 
+        // Pièces communes (toujours NON_FOURNI à la création)
         List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
         for (CataloguePieceCommune cat : piecesCommunes) {
             DossierPieceCommune piece = DossierPieceCommune.builder()
@@ -204,13 +209,19 @@ public class DossierController {
             dossierPieceCommuneRepository.save(piece);
         }
 
+        // Pièces complémentaires : si un fichier a été uploadé, on met FOURNI + fichierPath
+        java.util.Map<Integer, String> fichiers = dto.getPiecesComplementairesFichiers();
+
         List<CataloguePieceComplementaire> piecesComp = cataloguePieceComplementaireRepository.findAll();
         for (CataloguePieceComplementaire cat : piecesComp) {
             if (cat.getTypeIdentite() != null && cat.getTypeIdentite().getId().equals(typeIdentite.getId())) {
+                boolean hasFichier = fichiers != null && fichiers.containsKey(cat.getId());
                 DossierPieceComplementaire piece = DossierPieceComplementaire.builder()
                         .dossier(dossier)
                         .catalogueComplementaire(cat)
-                        .statutPiece(nonFourni)
+                        .statutPiece(hasFichier ? fourni : nonFourni)
+                        .fichierPath(hasFichier ? fichiers.get(cat.getId()) : null)
+                        .dateFourniture(hasFichier ? now : null)
                         .build();
                 dossierPieceComplementaireRepository.save(piece);
             }
