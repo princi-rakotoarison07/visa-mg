@@ -11,6 +11,11 @@ public class DemandeWebController {
         return "demande/nouveau";
     }
 
+    @GetMapping("/demande/duplicata")
+    public String duplicataDemandeView() {
+        return "demande/duplicata";
+    }
+
     @GetMapping("/demande/liste")
     public String listeDemandeView() {
         return "demande/liste";

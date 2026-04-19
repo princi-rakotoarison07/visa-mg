@@ -1,6 +1,7 @@
 package com.mada.visa_mg.controller;
 
 import com.mada.visa_mg.dto.DossierCreationDTO;
+import com.mada.visa_mg.dto.DuplicataCreationDTO;
 import com.mada.visa_mg.dto.DossierListDTO;
 import com.mada.visa_mg.dto.DossierPiecesDTO;
 import com.mada.visa_mg.entity.*;
@@ -38,6 +39,8 @@ public class DossierController {
     private final StatutPieceRepository statutPieceRepository;
     private final DossierPieceCommuneRepository dossierPieceCommuneRepository;
     private final DossierPieceComplementaireRepository dossierPieceComplementaireRepository;
+    private final VisaRepository visaRepository;
+    private final CarteResidentRepository carteResidentRepository;
 
     public DossierController(
             DossierRepository dossierRepository,
@@ -50,7 +53,9 @@ public class DossierController {
             CataloguePieceComplementaireRepository cataloguePieceComplementaireRepository,
             StatutPieceRepository statutPieceRepository,
             DossierPieceCommuneRepository dossierPieceCommuneRepository,
-            DossierPieceComplementaireRepository dossierPieceComplementaireRepository
+            DossierPieceComplementaireRepository dossierPieceComplementaireRepository,
+            VisaRepository visaRepository,
+            CarteResidentRepository carteResidentRepository
     ) {
         this.dossierRepository = dossierRepository;
         this.demandeurRepository = demandeurRepository;
@@ -63,6 +68,8 @@ public class DossierController {
         this.statutPieceRepository = statutPieceRepository;
         this.dossierPieceCommuneRepository = dossierPieceCommuneRepository;
         this.dossierPieceComplementaireRepository = dossierPieceComplementaireRepository;
+        this.visaRepository = visaRepository;
+        this.carteResidentRepository = carteResidentRepository;
     }
 
     @PostMapping
@@ -118,6 +125,103 @@ public class DossierController {
                         .dossier(dossier)
                         .catalogueComplementaire(cat)
                         .statutPiece(nonFourni)
+                        .build();
+                dossierPieceComplementaireRepository.save(piece);
+            }
+        }
+
+        return dossier;
+    }
+
+    @PostMapping("/duplicata")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Dossier createDuplicata(@Valid @RequestBody DuplicataCreationDTO dto) {
+        Demandeur demandeur = demandeurRepository.findById(dto.getDemandeurId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "demandeurId invalide"));
+
+        VisaTransformable visaTransformable = visaTransformableRepository.findById(dto.getVisaTransformableId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "visaTransformableId invalide"));
+
+        TypeIdentite typeIdentite = typeIdentiteRepository.findById(dto.getTypeIdentiteId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "typeIdentiteId invalide"));
+
+        TypeDemande duplicataType = typeDemandeRepository.findById(3) // 3 = DUPLICATA
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Type DUPLICATA manquant"));
+
+        StatutDossier approuvee = statutDossierRepository.findByCode("APPROUVEE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut APPROUVEE manquant"));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Dossier dossier = Dossier.builder()
+                .demandeur(demandeur)
+                .visaTransformable(visaTransformable)
+                .typeIdentite(typeIdentite)
+                .typeDemande(duplicataType)
+                .statutDossier(approuvee)
+                .dateDemande(LocalDate.now())
+                .dateTraitement(LocalDate.now()) // Traité immédiatement
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        dossier = dossierRepository.save(dossier);
+
+        // Création des documents finaux (Visa et/ou Carte Résident)
+        for (DuplicataCreationDTO.DocumentDuplicataDTO doc : dto.getDocuments()) {
+            if ("VISA".equals(doc.getTypeDocument())) {
+                Visa visa = Visa.builder()
+                        .dossier(dossier)
+                        .passeport(visaTransformable.getPasseport())
+                        .reference(doc.getReferenceDocument())
+                        .dateDebut(doc.getDateDebutDocument())
+                        .dateFin(doc.getDateFinDocument())
+                        .createdAt(now)
+                        .build();
+                visaRepository.save(visa);
+            } else if ("CARTE_RESIDENT".equals(doc.getTypeDocument())) {
+                CarteResident carte = CarteResident.builder()
+                        .dossier(dossier)
+                        .passeport(visaTransformable.getPasseport())
+                        .reference(doc.getReferenceDocument())
+                        .dateDebut(doc.getDateDebutDocument())
+                        .dateFin(doc.getDateFinDocument())
+                        .createdAt(now)
+                        .build();
+                carteResidentRepository.save(carte);
+            }
+        }
+
+        // Statuts des pièces
+        StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
+        StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
+
+        // Pièces communes (toujours NON_FOURNI à la création)
+        List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
+        for (CataloguePieceCommune cat : piecesCommunes) {
+            DossierPieceCommune piece = DossierPieceCommune.builder()
+                    .dossier(dossier)
+                    .cataloguePiece(cat)
+                    .statutPiece(nonFourni)
+                    .build();
+            dossierPieceCommuneRepository.save(piece);
+        }
+
+        // Pièces complémentaires : si un fichier a été uploadé, on met FOURNI + fichierPath
+        java.util.Map<Integer, String> fichiers = dto.getPiecesComplementairesFichiers();
+
+        List<CataloguePieceComplementaire> piecesComp = cataloguePieceComplementaireRepository.findAll();
+        for (CataloguePieceComplementaire cat : piecesComp) {
+            if (cat.getTypeIdentite() != null && cat.getTypeIdentite().getId().equals(typeIdentite.getId())) {
+                boolean hasFichier = fichiers != null && fichiers.containsKey(cat.getId());
+                DossierPieceComplementaire piece = DossierPieceComplementaire.builder()
+                        .dossier(dossier)
+                        .catalogueComplementaire(cat)
+                        .statutPiece(hasFichier ? fourni : nonFourni)
+                        .fichierPath(hasFichier ? fichiers.get(cat.getId()) : null)
+                        .dateFourniture(hasFichier ? now : null)
                         .build();
                 dossierPieceComplementaireRepository.save(piece);
             }

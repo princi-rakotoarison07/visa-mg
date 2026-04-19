@@ -4,7 +4,7 @@
 
 ---
 
-## STRUCTURE DU PROJET 
+## STRUCTURE DU PROJET
 
 titre-sejour-backend/
 │
@@ -196,28 +196,31 @@ SPRINT 3 — Validation et upload
 
 ---
 
-### SPRINT 2 — Récupération dossier existant
+### SPRINT 2 — Duplicata (visa ou carte de résident perdu, sans historique système)
 
-**Objectif :** Retrouver et modifier un dossier déjà créé (cas de renouvellement ou visa interdit).
+**Contexte :**
+Le demandeur possédait un visa ou une carte de résident délivré dans l'ancien
+système papier. Il l'a perdu ou volé. Le nouveau système n'a aucune trace de
+ce document. Pour reconstruire son dossier, il apporte physiquement les
+photocopies de ses anciens documents (ex: ref, dates).
+L'agent back-office saisit les informations à partir de ces photocopies.
+Le résultat final est une décision manuelle de l'agent : recréer un nouveau
+visa ou une nouvelle carte de résident avec les mêmes informations reconstituées.
 
-#### Backend
-
-- [ ] `DossierController` — GET /api/dossiers/{id}
-  - Retourne dossier + demandeur + visa + liste des pièces
-- [ ] `DemandeurController` — GET /api/demandeurs/{id}
-  - Retourne les informations complètes du demandeur
-- [ ] `DossierService` — méthode `modifierDossier()`
-  - PUT /api/dossiers/{id} → mise à jour sans recréer les pièces
-- [ ] Gestion du cas "visa interdit" : filtre sur statut_dossier = REJETE
-- [ ] Endpoint de recherche : GET /api/dossiers?nom=&prenom=&statut=
 
 #### Frontend (si applicable)
 
-- [ ] Formulaire de recherche (nom / prénom / numéro de passeport)
-- [ ] Affichage du dossier retrouvé avec pré-remplissage
-- [ ] Possibilité de modifier les champs et de sauvegarder
+* [ ] Étape 1 : même formulaire que Sprint 1 (état civil + passeport + pièces communes
+  et complémentaires selon type) + upload des photocopies justificatives
+* [ ] Étape 2 : saisie du document à récupérer
+  * Choix : Visa ou Carte de résident
+  * Référence (numéro reconstruit depuis la photocopie)
+  * Date début et date fin
+* [ ] Bouton "Soumettre"
 
 ---
+
+
 
 ### SPRINT 3 — Upload pièces + validation finale
 
