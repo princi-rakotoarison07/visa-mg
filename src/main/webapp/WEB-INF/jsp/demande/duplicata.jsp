@@ -217,8 +217,8 @@
 
 <script>
     // ========== Stockage des fichiers uploadés ==========
-    // Map : catalogueComplementaireId -> fichierPath (retourné par le serveur)
-    const uploadedFiles = {};
+    const uploadedCommunes = {};
+    const uploadedComplementaires = {};
 
     function validateStep(stepNum) {
         const stepDiv = document.getElementById('step-' + stepNum);
@@ -324,16 +324,28 @@
             } catch(e) { alert("Erreur réseau Visa"); return; }
         }
 
-        // Etape 3 : Vérifier que toutes les pièces complémentaires ont un fichier uploadé
+        // Etape 3 : Vérifier que toutes les pièces OBLIGATOIRES ont un fichier uploadé
         if (current === 3) {
+            // Vérifier pièces communes
+            if (window.piecesCommunes) {
+                for (const p of window.piecesCommunes) {
+                    const isRequired = p.estObligatoire !== false; // Par défaut true si manquant
+                    if (isRequired && !uploadedCommunes[p.id]) {
+                        alert('Veuillez uploader le justificatif obligatoire (commune) : ' + p.libelle);
+                        return;
+                    }
+                }
+            }
+
             const typeVisa = document.getElementById('type_visa_id').value;
             if (typeVisa && window.piecesComplementaires) {
                 const piecesFiltered = window.piecesComplementaires.filter(
                     p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)
                 );
                 for (const p of piecesFiltered) {
-                    if (!uploadedFiles[p.id]) {
-                        alert('Veuillez uploader le justificatif pour : ' + p.libelle);
+                    const isRequired = p.estObligatoire !== false;
+                    if (isRequired && !uploadedComplementaires[p.id]) {
+                        alert('Veuillez uploader le justificatif obligatoire (complémentaire) : ' + p.libelle);
                         return;
                     }
                 }
@@ -370,12 +382,12 @@
         }
     }
 
-    // ========== Upload fichier complémentaire ==========
-    async function uploadPieceComplementaire(catalogueId, fileInput) {
+    // ========== Upload fichier générique ==========
+    async function uploadPiece(pieceId, fileInput, storageMap, statusPrefix) {
         const file = fileInput.files[0];
         if (!file) return;
 
-        const statusSpan = document.getElementById('upload-status-' + catalogueId);
+        const statusSpan = document.getElementById(statusPrefix + pieceId);
         statusSpan.textContent = 'Envoi en cours...';
         statusSpan.className = 'upload-status pending';
 
@@ -389,7 +401,7 @@
             });
             if (res.ok) {
                 const data = await res.json();
-                uploadedFiles[catalogueId] = data.fichierPath;
+                storageMap[pieceId] = data.fichierPath;
                 statusSpan.textContent = '✓ Fichier uploadé';
                 statusSpan.className = 'upload-status success';
             } else {
@@ -416,14 +428,26 @@
         if (typeVisa) {
             container.style.display = 'block';
 
-            // Pièces communes (juste checklist informative)
+            // Pièces communes avec upload (obligatoire ou non)
             if (window.piecesCommunes) {
                 window.piecesCommunes.forEach(p => {
-                    listObligatoire.innerHTML += '<div class="checklist-item"><input type="checkbox" /> ' + p.libelle + '</div>';
+                    const isRequired = p.estObligatoire !== false;
+                    const badge = isRequired 
+                        ? '<span style="color:red; font-size:0.8rem; font-weight:normal; margin-left:5px;">* obligatoire</span>'
+                        : '<span style="color:gray; font-size:0.8rem; font-weight:normal; margin-left:5px;">(facultatif)</span>';
+                    listObligatoire.innerHTML += 
+                        '<div class="checklist-item">' +
+                        '  <label>' + p.libelle + badge + '</label>' +
+                        '  <div class="upload-row">' +
+                        '    <input type="file" id="file-comm-' + p.id + '" accept=".pdf,.jpg,.jpeg,.png" ' +
+                        '           onchange="uploadPiece(' + p.id + ', this, uploadedCommunes, \'upload-status-comm-\')" />' +
+                        '    <span id="upload-status-comm-' + p.id + '" class="upload-status pending">' + (isRequired ? 'Non fourni (requis)' : 'Non fourni') + '</span>' +
+                        '  </div>' +
+                        '</div>';
                 });
             }
 
-            // Pièces complémentaires avec upload obligatoire
+            // Pièces complémentaires avec upload
             if (window.piecesComplementaires) {
                 const piecesFiltered = window.piecesComplementaires.filter(
                     p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)
@@ -432,13 +456,17 @@
                 if (piecesFiltered.length > 0) {
                     compTitle.style.display = 'block';
                     piecesFiltered.forEach(p => {
+                        const isRequired = p.estObligatoire !== false;
+                        const badge = isRequired 
+                            ? '<span style="color:red; font-size:0.8rem; font-weight:normal; margin-left:5px;">* obligatoire</span>'
+                            : '<span style="color:gray; font-size:0.8rem; font-weight:normal; margin-left:5px;">(facultatif)</span>';
                         comp.innerHTML +=
                             '<div class="checklist-item">' +
-                            '  <label>' + p.libelle + '</label>' +
+                            '  <label>' + p.libelle + badge + '</label>' +
                             '  <div class="upload-row">' +
                             '    <input type="file" id="file-comp-' + p.id + '" accept=".pdf,.jpg,.jpeg,.png" ' +
-                            '           onchange="uploadPieceComplementaire(' + p.id + ', this)" />' +
-                            '    <span id="upload-status-' + p.id + '" class="upload-status pending">Non fourni</span>' +
+                            '           onchange="uploadPiece(' + p.id + ', this, uploadedComplementaires, \'upload-status-comp-\')" />' +
+                            '    <span id="upload-status-comp-' + p.id + '" class="upload-status pending">' + (isRequired ? 'Non fourni (requis)' : 'Non fourni') + '</span>' +
                             '  </div>' +
                             '</div>';
                     });
@@ -577,7 +605,8 @@
             visaTransformableId: currentVisaId,
             typeIdentiteId: parseInt(document.getElementById('type_visa_id').value),
             documents: documents,
-            piecesComplementairesFichiers: uploadedFiles
+            piecesCommunesFichiers: uploadedCommunes,
+            piecesComplementairesFichiers: uploadedComplementaires
         };
 
         try {

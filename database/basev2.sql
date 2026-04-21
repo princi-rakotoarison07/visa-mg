@@ -221,13 +221,7 @@ CREATE TABLE catalogue_piece_commune (
 );
 INSERT INTO catalogue_piece_commune (code, libelle) VALUES
     ('PHOTO_ID',        '01 photos d''identité récentes'),
-    ('NOTICE_RENS',     'Notice de renseignement'),
-    ('DEMANDE_MIN',     'Demande adressée au Ministre de l''Intérieur (avec adresse email et téléphone portable)'),
-    ('COPIE_VISA',      'Photocopie certifiée du visa en cours de validité'),
-    ('COPIE_PASSPORT',  'Photocopie certifiée de la 1ère page du passeport'),
-    ('COPIE_CARTE_RES', 'Photocopie certifiée de la carte résident en cours de validité'),
-    ('CERT_RESIDENCE',  'Certificat de résidence à Madagascar'),
-    ('CASIER_JUD',      'Extrait de casier judiciaire (moins de 3 mois)');
+    ('NOTICE_RENS',     'Notice de renseignement');
 
 
 -- ============================================================
