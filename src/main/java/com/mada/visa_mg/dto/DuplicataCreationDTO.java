@@ -28,6 +28,9 @@ public class DuplicataCreationDTO {
     // Map : catalogueComplementaireId -> fichierPath (retourné par /api/uploads)
     private Map<Integer, String> piecesComplementairesFichiers;
 
+    // Map : cataloguePieceCommuneId -> fichierPath (retourné par /api/uploads)
+    private Map<Integer, String> piecesCommunesFichiers;
+
     @Data
     public static class DocumentDuplicataDTO {
         @NotNull

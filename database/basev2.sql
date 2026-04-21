@@ -214,20 +214,15 @@ CREATE TABLE carte_resident (
 -- ============================================================
 
 CREATE TABLE catalogue_piece_commune (
-    id      SERIAL      PRIMARY KEY,
-    code    VARCHAR(80) NOT NULL UNIQUE,
-    libelle TEXT        NOT NULL
+    id              SERIAL      PRIMARY KEY,
+    code            VARCHAR(80) NOT NULL UNIQUE,
+    libelle         TEXT        NOT NULL,
+    est_obligatoire BOOLEAN     NOT NULL DEFAULT TRUE
 );
-INSERT INTO catalogue_piece_commune (code, libelle) VALUES
-    ('PHOTO_ID',        '01 photos d''identité récentes'),
-    ('NOTICE_RENS',     'Notice de renseignement'),
-    ('DEMANDE_MIN',     'Demande adressée au Ministre de l''Intérieur (avec adresse email et téléphone portable)'),
-    ('COPIE_VISA',      'Photocopie certifiée du visa en cours de validité'),
-    ('COPIE_PASSPORT',  'Photocopie certifiée de la 1ère page du passeport'),
-    ('COPIE_CARTE_RES', 'Photocopie certifiée de la carte résident en cours de validité'),
-    ('CERT_RESIDENCE',  'Certificat de résidence à Madagascar'),
-    ('CASIER_JUD',      'Extrait de casier judiciaire (moins de 3 mois)');
-
+INSERT INTO catalogue_piece_commune (code, libelle, est_obligatoire) VALUES
+    ('PHOTO_ID',        '02 photos d''identité récentes', TRUE),
+    ('NOTICE_RENS',     'Notice de renseignement', TRUE),
+    ('DEMANDE_MIN',     'Demande adressée au Ministre de l''Intérieur (avec adresse email et téléphone portable)', TRUE);
 
 -- ============================================================
 -- 8. PIÈCES COMMUNES PAR DEMANDE  (suivi checkbox + upload)
@@ -249,10 +244,11 @@ CREATE TABLE demande_piece_commune (
 -- ============================================================
 
 CREATE TABLE catalogue_piece_complementaire (
-    id           SERIAL      PRIMARY KEY,
-    type_visa_id INT         NOT NULL REFERENCES type_visa(id),
-    code         VARCHAR(80) NOT NULL,
-    libelle      TEXT        NOT NULL,
+    id              SERIAL      PRIMARY KEY,
+    type_visa_id    INT         NOT NULL REFERENCES type_visa(id),
+    code            VARCHAR(80) NOT NULL,
+    libelle         TEXT        NOT NULL,
+    est_obligatoire BOOLEAN     NOT NULL DEFAULT TRUE,
     UNIQUE (type_visa_id, code)
 );
 
@@ -294,3 +290,4 @@ CREATE TABLE demande_piece_complementaire (
     date_fourniture             TIMESTAMP,
     UNIQUE (demande_id, catalogue_complementaire_id)
 );
+

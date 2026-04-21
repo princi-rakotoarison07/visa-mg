@@ -22,8 +22,8 @@ DROP TABLE IF EXISTS situation_familiale CASCADE;
 DROP TABLE IF EXISTS nationalite CASCADE;
 
 -- Anciennes tables persistantes au cas où (issues de la V1 et JPA Spring)
-DROP TABLE IF EXISTS dossier_piece_complementaire CASCADE;
-DROP TABLE IF EXISTS dossier_piece_commune CASCADE;
-DROP TABLE IF EXISTS dossier CASCADE;
-DROP TABLE IF EXISTS type_identite CASCADE;
-DROP TABLE IF EXISTS statut_dossier CASCADE;
+-- DROP TABLE IF EXISTS dossier_piece_complementaire CASCADE;
+-- DROP TABLE IF EXISTS dossier_piece_commune CASCADE;
+-- DROP TABLE IF EXISTS dossier CASCADE;
+-- DROP TABLE IF EXISTS type_identite CASCADE;
+-- DROP TABLE IF EXISTS statut_dossier CASCADE;
