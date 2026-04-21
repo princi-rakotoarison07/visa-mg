@@ -21,6 +21,11 @@ public class DemandeWebController {
         return "demande/liste";
     }
 
+    @GetMapping("/demande/detail")
+    public String detailDemandeView() {
+        return "demande/detail";
+    }
+
     @GetMapping("/")
     public String indexView() {
         return "index";

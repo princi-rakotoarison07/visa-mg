@@ -230,6 +230,12 @@ public class DossierController {
         return dossier;
     }
 
+    @GetMapping("/{id}")
+    public Dossier getById(@PathVariable Integer id) {
+        return dossierRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+    }
+
     @GetMapping("/{id}/pieces")
     public DossierPiecesDTO getPieces(@PathVariable Integer id) {
         if (!dossierRepository.existsById(id)) {
@@ -293,5 +299,86 @@ public class DossierController {
             }
         }
         return result;
+    }
+
+    // ========== Upload pièce commune individuelle ==========
+    @PutMapping("/{dossierId}/pieces-communes/{pieceId}/upload")
+    public DossierPieceCommune uploadPieceCommune(
+            @PathVariable Integer dossierId,
+            @PathVariable Integer pieceId,
+            @RequestBody java.util.Map<String, String> body) {
+
+        DossierPieceCommune piece = dossierPieceCommuneRepository.findById(pieceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pièce commune introuvable"));
+
+        if (!piece.getDossier().getId().equals(dossierId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La pièce n'appartient pas à ce dossier");
+        }
+
+        StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
+
+        piece.setStatutPiece(fourni);
+        piece.setFichierPath(body.get("fichierPath"));
+        piece.setDateFourniture(LocalDateTime.now());
+
+        return dossierPieceCommuneRepository.save(piece);
+    }
+
+    // ========== Upload pièce complémentaire individuelle ==========
+    @PutMapping("/{dossierId}/pieces-complementaires/{pieceId}/upload")
+    public DossierPieceComplementaire uploadPieceComplementaire(
+            @PathVariable Integer dossierId,
+            @PathVariable Integer pieceId,
+            @RequestBody java.util.Map<String, String> body) {
+
+        DossierPieceComplementaire piece = dossierPieceComplementaireRepository.findById(pieceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pièce complémentaire introuvable"));
+
+        if (!piece.getDossier().getId().equals(dossierId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La pièce n'appartient pas à ce dossier");
+        }
+
+        StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
+
+        piece.setStatutPiece(fourni);
+        piece.setFichierPath(body.get("fichierPath"));
+        piece.setDateFourniture(LocalDateTime.now());
+
+        return dossierPieceComplementaireRepository.save(piece);
+    }
+
+    // ========== Scan terminé : changer statut si toutes les pièces sont fournies ==========
+    @PutMapping("/{dossierId}/scan-terminer")
+    public Dossier scanTerminer(@PathVariable Integer dossierId) {
+        Dossier dossier = dossierRepository.findById(dossierId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+
+        // Vérifier que toutes les pièces communes sont FOURNI
+        List<DossierPieceCommune> communes = dossierPieceCommuneRepository.findByDossierId(dossierId);
+        for (DossierPieceCommune pc : communes) {
+            if (!"FOURNI".equals(pc.getStatutPiece().getCode())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Pièce commune non fournie : " + pc.getCataloguePiece().getLibelle());
+            }
+        }
+
+        // Vérifier que toutes les pièces complémentaires sont FOURNI
+        List<DossierPieceComplementaire> complementaires = dossierPieceComplementaireRepository.findByDossierId(dossierId);
+        for (DossierPieceComplementaire pc : complementaires) {
+            if (!"FOURNI".equals(pc.getStatutPiece().getCode())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Pièce complémentaire non fournie : " + pc.getCatalogueComplementaire().getLibelle());
+            }
+        }
+
+        StatutDossier scanTermine = statutDossierRepository.findByCode("SCAN_TERMINER")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut SCAN_TERMINER manquant"));
+
+        dossier.setStatutDossier(scanTermine);
+        dossier.setUpdatedAt(LocalDateTime.now());
+
+        return dossierRepository.save(dossier);
     }
 }

@@ -77,10 +77,13 @@ document.addEventListener("DOMContentLoaded", function() {
                  actionLink = '<a href="' + urlNouveau + '" class="btn-continuer">Continuer</a>';
               } else if (statut === 'CREER') {
                  badgeClass += 'soumise';
-                 actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff;">Voir détail</a>';
+                 actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff; font-size: 1.2rem; text-decoration: none;" title="Voir détail">👁️</a>';
+              } else if (statut === 'SCAN_TERMINER') {
+                 badgeClass += 'soumise';
+                 actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #28a745; font-size: 1.2rem; text-decoration: none;" title="Voir détail">👁️</a>';
               } else {
                  badgeClass += 'soumise';
-                 actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff;">Voir détail</a>';
+                 actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff; font-size: 1.2rem; text-decoration: none;" title="Voir détail">👁️</a>';
               }
               
               tbody.innerHTML += '<tr>' +

@@ -77,10 +77,11 @@ CREATE TABLE statut_demande (
     libelle VARCHAR(80) NOT NULL
 );
 INSERT INTO statut_demande (code, libelle) VALUES
-    ('BROUILLON',    'Brouillon'),
-    ('CREER',      'Créer'),
-    ('APPROUVEE',    'Approuvée'),
-    ('REJETEE',      'Rejetée');
+    ('BROUILLON',      'Brouillon'),
+    ('CREER',          'Créer'),
+    ('SCAN_TERMINER',  'Scan terminé'),
+    ('APPROUVEE',      'Approuvée'),
+    ('REJETEE',        'Rejetée');
 
 -- ------------------------------------------------
 
