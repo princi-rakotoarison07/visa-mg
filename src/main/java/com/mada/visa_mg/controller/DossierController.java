@@ -198,13 +198,18 @@ public class DossierController {
         StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
 
-        // Pièces communes (toujours NON_FOURNI à la création)
+        // Pièces communes : si un fichier a été uploadé, on met FOURNI + fichierPath
+        java.util.Map<Integer, String> fichiersCommuns = dto.getPiecesCommunesFichiers();
+
         List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
         for (CataloguePieceCommune cat : piecesCommunes) {
+            boolean hasFichier = fichiersCommuns != null && fichiersCommuns.containsKey(cat.getId());
             DossierPieceCommune piece = DossierPieceCommune.builder()
                     .dossier(dossier)
                     .cataloguePiece(cat)
-                    .statutPiece(nonFourni)
+                    .statutPiece(hasFichier ? fourni : nonFourni)
+                    .fichierPath(hasFichier ? fichiersCommuns.get(cat.getId()) : null)
+                    .dateFourniture(hasFichier ? now : null)
                     .build();
             dossierPieceCommuneRepository.save(piece);
         }
