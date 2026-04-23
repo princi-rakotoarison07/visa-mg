@@ -133,8 +133,10 @@
                     </div>
 
                     <div id="checklist-container" class="checklist" style="display:none;">
-                        <h3>Pièces obligatoires à fournir</h3>
-                        <div id="list-obligatoire"></div>
+                        <h3>Pièces communes</h3>
+                        <div id="list-communes"></div>
+
+                        <h3 id="pieces-comp-title" style="display:none;">Pièces complémentaires</h3>
                         <div id="pieces-complementaires"></div>
                     </div>
 
@@ -274,9 +276,10 @@
     function updateChecklist() {
         const typeVisa = document.getElementById('type_visa_id').value;
         const container = document.getElementById('checklist-container');
-        const listObligatoire = document.getElementById('list-obligatoire');
+        const listCommunes = document.getElementById('list-communes');
         const comp = document.getElementById('pieces-complementaires');
-        listObligatoire.innerHTML = '';
+        const compTitle = document.getElementById('pieces-comp-title');
+        listCommunes.innerHTML = '';
         comp.innerHTML = '';
 
         if (typeVisa) {
@@ -284,17 +287,46 @@
 
             if (window.piecesCommunes) {
                 window.piecesCommunes.forEach(p => {
-                    listObligatoire.innerHTML += '<div class="checklist-item"><input type="checkbox" /> ' + p.libelle + '</div>';
+                    listCommunes.innerHTML +=
+                        '<div class="checklist-item">' +
+                        '  <label>' +
+                        '    <input type="checkbox" class="piece-checkbox" data-required="true" data-piece-type="commune" data-piece-id="' + p.id + '" /> ' +
+                        '    ' + p.libelle +
+                        '    <span style="color:red; font-size:0.8rem; font-weight:normal; margin-left:5px;">* obligatoire</span>' +
+                        '  </label>' +
+                        '</div>';
                 });
             }
 
             if (window.piecesComplementaires) {
-                window.piecesComplementaires.filter(p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)).forEach(p => {
-                    comp.innerHTML += '<div class="checklist-item"><input type="checkbox" /> ' + p.libelle + '</div>';
-                });
+                const piecesFiltered = window.piecesComplementaires.filter(
+                    p => p.typeIdentite && parseInt(p.typeIdentite.id) === parseInt(typeVisa)
+                );
+
+                if (piecesFiltered.length > 0) {
+                    compTitle.style.display = 'block';
+                    piecesFiltered.forEach(p => {
+                        const isRequired = p.estObligatoire !== false;
+                        const badge = isRequired
+                            ? '<span style="color:red; font-size:0.8rem; font-weight:normal; margin-left:5px;">* obligatoire</span>'
+                            : '<span style="color:gray; font-size:0.8rem; font-weight:normal; margin-left:5px;">(facultatif)</span>';
+
+                        comp.innerHTML +=
+                            '<div class="checklist-item">' +
+                            '  <label>' +
+                            '    <input type="checkbox" class="piece-checkbox" data-required="' + (isRequired ? 'true' : 'false') + '" data-piece-type="complementaire" data-piece-id="' + p.id + '" /> ' +
+                            '    ' + p.libelle +
+                            '    ' + badge +
+                            '  </label>' +
+                            '</div>';
+                    });
+                } else {
+                    compTitle.style.display = 'none';
+                }
             }
         } else {
             container.style.display = 'none';
+            compTitle.style.display = 'none';
         }
     }
 
@@ -376,6 +408,13 @@
     async function submitForm(e) {
         e.preventDefault();
         if (!validateStep(3)) return false;
+
+        const requiredUnchecked = Array.from(document.querySelectorAll('.piece-checkbox[data-required="true"]'))
+            .filter(cb => !cb.checked);
+        if (requiredUnchecked.length > 0) {
+            alert('Veuillez cocher toutes les pièces obligatoires avant de valider la demande.');
+            return false;
+        }
 
         const dossierDTO = {
             demandeurId: currentDemandeurId,

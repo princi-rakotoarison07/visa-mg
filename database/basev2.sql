@@ -248,31 +248,32 @@ CREATE TABLE catalogue_piece_complementaire (
     type_visa_id INT         NOT NULL REFERENCES type_visa(id),
     code         VARCHAR(80) NOT NULL,
     libelle      TEXT        NOT NULL,
+    est_obligatoire BOOLEAN  NOT NULL DEFAULT TRUE,
     UNIQUE (type_visa_id, code)
 );
 
 -- TRAVAILLEUR
-INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle)
+INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle, est_obligatoire)
 SELECT id, 'AUTORISATION_EMPLOI',
-    'Autorisation d''emploi délivrée par le Ministère de la Fonction Publique'
+    'Autorisation d''emploi délivrée par le Ministère de la Fonction Publique', TRUE
 FROM type_visa WHERE code = 'TRAVAILLEUR';
 
-INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle)
+INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle, est_obligatoire)
 SELECT id, 'ATTESTATION_EMPLOI',
-    'Attestation d''emploi délivrée par l''employeur (original)'
+    'Attestation d''emploi délivrée par l''employeur (original)', TRUE
 FROM type_visa WHERE code = 'TRAVAILLEUR';
 
 -- INVESTISSEUR
-INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle)
-SELECT id, 'STATUT_SOCIETE', 'Statut de la Société'
+INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle, est_obligatoire)
+SELECT id, 'STATUT_SOCIETE', 'Statut de la Société', TRUE
 FROM type_visa WHERE code = 'INVESTISSEUR';
 
-INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle)
-SELECT id, 'EXTRAIT_REGISTRE', 'Extrait d''inscription au Registre de Commerce'
+INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle, est_obligatoire)
+SELECT id, 'EXTRAIT_REGISTRE', 'Extrait d''inscription au Registre de Commerce', TRUE
 FROM type_visa WHERE code = 'INVESTISSEUR';
 
-INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle)
-SELECT id, 'CARTE_FISCALE', 'Carte fiscale en cours de validité'
+INSERT INTO catalogue_piece_complementaire (type_visa_id, code, libelle, est_obligatoire)
+SELECT id, 'CARTE_FISCALE', 'Carte fiscale en cours de validité', TRUE
 FROM type_visa WHERE code = 'INVESTISSEUR';
 
 

@@ -146,7 +146,7 @@
                         <h3>Pièces communes à fournir</h3>
                         <div id="list-obligatoire"></div>
 
-                        <h3 id="pieces-comp-title" style="display:none;">Pièces complémentaires obligatoires (upload justificatif requis)</h3>
+                        <h3 id="pieces-comp-title" style="display:none;">Pièces complémentaires (upload justificatif requis si obligatoire)</h3>
                         <div id="pieces-complementaires"></div>
                     </div>
 

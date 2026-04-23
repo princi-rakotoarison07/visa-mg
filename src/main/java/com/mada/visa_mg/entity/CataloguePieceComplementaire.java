@@ -31,4 +31,7 @@ public class CataloguePieceComplementaire {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String libelle;
+
+    @Column(name = "est_obligatoire", nullable = false)
+    private Boolean estObligatoire;
 }
