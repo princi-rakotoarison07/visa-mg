@@ -11,3 +11,6 @@ piece_complementaire (id, type_identite_id, nom_piece, obligatoire)
 
 demande_piece_commune_fournie (demande_id, piece_commune_id, fourni, ...)
 demande_piece_complementaire_fournie (demande_id, piece_complementaire_id, fourni, ...)
+
+
+Separer le 
