@@ -111,6 +111,7 @@ public class DossierController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
 
         StatutPiece nonApplicable = statutPieceRepository.findByCode("NON_APPLICABLE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_APPLICABLE manquant"));
 
         Set<Integer> communesCochees = dto.getPiecesCommunesCochees() == null
                 ? null
