@@ -119,6 +119,7 @@
         
         fetch('/api/dossiers/' + dossierId)
             .then(res => {
+                if (res.status === 404) throw new Error("Dossier introuvable");
                 if (!res.ok) throw new Error("Erreur de récupération");
                 return res.json();
             })
@@ -148,12 +149,20 @@
                         '<div><strong>Date entrée :</strong> ' + (d.visaTransformable ? d.visaTransformable.dateEntree : '-') + '</div>';
                 }
             })
-            .catch(err => alert("Erreur: " + err.message));
+            .catch(err => {
+                alert("Erreur: " + err.message);
+                if (err.message === 'Dossier introuvable') {
+                    window.location.href = "/demande/liste";
+                }
+            });
     }
 
     function chargerPieces() {
         fetch('/api/dossiers/' + dossierId + '/pieces')
-            .then(res => res.json())
+            .then(res => {
+                if (res.status === 404) throw new Error('Dossier introuvable');
+                return res.json();
+            })
             .then(data => {
                 const container = document.getElementById('pieces-container');
                 container.innerHTML = '<h3>Pièces Communes</h3>';
@@ -176,21 +185,26 @@
 
                 updateProgressBar();
             })
-            .catch(err => console.error("Erreur pièces", err));
+            .catch(err => {
+                console.error("Erreur pièces", err);
+                if (err.message === 'Dossier introuvable') {
+                    alert('Dossier introuvable');
+                    window.location.href = "/demande/liste";
+                }
+            });
     }
 
     function renderPiece(container, p, type) {
         const cat = type === 'commune' ? p.cataloguePiece : p.catalogueComplementaire;
         const statutCode = p.statutPiece.code;
         const isFourni = statutCode === 'FOURNI';
-        // En v2.sql sans est_obligatoire visible de l'API (sauf si on l'a rajouté), on assume tout obligatoire pour l'instant ou selon le cas.
-        // Puisque nous l'avons rajouté, on peut l'utiliser
-        const isObligatoire = cat.estObligatoire !== false; // par défaut true
+        const isApplicable = statutCode !== 'NON_APPLICABLE';
+        const isObligatoire = (type === 'commune') ? true : (cat.estObligatoire !== false);
         
         let html = '';
         
-        if (isObligatoire) totalObligatoire++;
-        if (isObligatoire && isFourni) fournisObligatoire++;
+        if (isApplicable && isObligatoire) totalObligatoire++;
+        if (isApplicable && isObligatoire && isFourni) fournisObligatoire++;
 
         const cssClass = isFourni ? 'fourni' : 'non-fourni';
         const iconInfo = isFourni 
@@ -199,7 +213,9 @@
 
         // Bouton d'upload (seulement si non fourni)
         let actionHtml = '';
-        if (isFourni) {
+        if (!isApplicable) {
+            actionHtml = '<span style="color:#6c757d; font-size:0.9rem;">Non coché</span>';
+        } else if (isFourni) {
             actionHtml = '<a href="/api/files/' + p.fichierPath + '" target="_blank" style="margin-right:10px;">Voir le fichier</a>';
         } else {
             actionHtml = 
@@ -207,9 +223,16 @@
                 '<button type="button" class="upload-btn" onclick="document.getElementById(\'file-' + type + '-' + p.id + '\').click()">Choisir fichier</button>';
         }
 
+        const checkedAttr = isApplicable ? 'checked' : '';
+
         html += '<div class="checklist-item ' + cssClass + '">' +
-                '  <div>' + iconInfo + ' <strong>' + cat.libelle + '</strong>' + 
-                   (isObligatoire ? ' <span style="color:red;font-size:0.8rem;">*</span' : '') + '</div>' +
+                '  <div>' +
+                '    <label style="display:flex; align-items:center; gap:10px;">' +
+                '      <input type="checkbox" ' + checkedAttr + ' onchange="toggleApplicable(' + p.id + ', \'' + type + '\', this.checked)" />' +
+                '      ' + iconInfo + ' <strong>' + cat.libelle + '</strong>' +
+                '      ' + (isObligatoire ? '<span style="color:red;font-size:0.8rem;">*</span>' : '<span style="color:gray;font-size:0.8rem;">(facultatif)</span>') +
+                '    </label>' +
+                '  </div>' +
                 '  <div>' + actionHtml + '</div>' +
                 '</div>';
                 
@@ -261,6 +284,20 @@
         .then(res => {
             if(!res.ok) throw new Error("Erreur de mise à jour de la pièce");
             chargerPieces(); // recharger pour mettre à jour la barre de progression
+        })
+        .catch(err => alert(err.message));
+    }
+
+    function toggleApplicable(pieceId, type, applicable) {
+        const endpt = type === 'commune' ? 'pieces-communes' : 'pieces-complementaires';
+        return fetch('/api/dossiers/' + dossierId + '/' + endpt + '/' + pieceId + '/applicable', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ applicable: applicable })
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Erreur lors de la mise à jour');
+            chargerPieces();
         })
         .catch(err => alert(err.message));
     }

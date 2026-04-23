@@ -416,11 +416,21 @@
             return false;
         }
 
+        const checkedCommunes = Array.from(document.querySelectorAll('.piece-checkbox[data-piece-type="commune"]'))
+            .filter(cb => cb.checked)
+            .map(cb => parseInt(cb.getAttribute('data-piece-id')));
+
+        const checkedComplementaires = Array.from(document.querySelectorAll('.piece-checkbox[data-piece-type="complementaire"]'))
+            .filter(cb => cb.checked)
+            .map(cb => parseInt(cb.getAttribute('data-piece-id')));
+
         const dossierDTO = {
             demandeurId: currentDemandeurId,
             visaTransformableId: currentVisaId,
             typeIdentiteId: parseInt(document.getElementById('type_visa_id').value),
-            typeDemandeId: 1 // 1 = NOUVEAU_TITRE dans type_demande
+            typeDemandeId: 1, // 1 = NOUVEAU_TITRE dans type_demande
+            piecesCommunesCochees: checkedCommunes,
+            piecesComplementairesCochees: checkedComplementaires
         };
 
         try {

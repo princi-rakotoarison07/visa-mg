@@ -23,6 +23,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/dossiers")
@@ -108,12 +110,23 @@ public class DossierController {
         StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
 
+        StatutPiece nonApplicable = statutPieceRepository.findByCode("NON_APPLICABLE")
+
+        Set<Integer> communesCochees = dto.getPiecesCommunesCochees() == null
+                ? null
+                : new HashSet<>(dto.getPiecesCommunesCochees());
+
+        Set<Integer> complementairesCochees = dto.getPiecesComplementairesCochees() == null
+                ? null
+                : new HashSet<>(dto.getPiecesComplementairesCochees());
+
         List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
         for (CataloguePieceCommune cat : piecesCommunes) {
+            boolean isCochee = communesCochees == null || communesCochees.contains(cat.getId());
             DossierPieceCommune piece = DossierPieceCommune.builder()
                     .dossier(dossier)
                     .cataloguePiece(cat)
-                    .statutPiece(nonFourni)
+                    .statutPiece(isCochee ? nonFourni : nonApplicable)
                     .build();
             dossierPieceCommuneRepository.save(piece);
         }
@@ -121,10 +134,11 @@ public class DossierController {
         List<CataloguePieceComplementaire> piecesComp = cataloguePieceComplementaireRepository.findAll();
         for (CataloguePieceComplementaire cat : piecesComp) {
             if (cat.getTypeIdentite() != null && cat.getTypeIdentite().getId().equals(typeIdentite.getId())) {
+                boolean isCochee = complementairesCochees == null || complementairesCochees.contains(cat.getId());
                 DossierPieceComplementaire piece = DossierPieceComplementaire.builder()
                         .dossier(dossier)
                         .catalogueComplementaire(cat)
-                        .statutPiece(nonFourni)
+                        .statutPiece(isCochee ? nonFourni : nonApplicable)
                         .build();
                 dossierPieceComplementaireRepository.save(piece);
             }
@@ -358,6 +372,9 @@ public class DossierController {
         // Vérifier que toutes les pièces communes sont FOURNI
         List<DossierPieceCommune> communes = dossierPieceCommuneRepository.findByDossierId(dossierId);
         for (DossierPieceCommune pc : communes) {
+            if ("NON_APPLICABLE".equals(pc.getStatutPiece().getCode())) {
+                continue;
+            }
             if (!"FOURNI".equals(pc.getStatutPiece().getCode())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Pièce commune non fournie : " + pc.getCataloguePiece().getLibelle());
@@ -367,6 +384,19 @@ public class DossierController {
         // Vérifier que toutes les pièces complémentaires sont FOURNI
         List<DossierPieceComplementaire> complementaires = dossierPieceComplementaireRepository.findByDossierId(dossierId);
         for (DossierPieceComplementaire pc : complementaires) {
+            if ("NON_APPLICABLE".equals(pc.getStatutPiece().getCode())) {
+                continue;
+            }
+
+            Boolean estObligatoire = pc.getCatalogueComplementaire() != null
+                    ? pc.getCatalogueComplementaire().getEstObligatoire()
+                    : Boolean.TRUE;
+
+            // Si pièce complémentaire facultative, on ne bloque pas le scan même si non fournie
+            if (Boolean.FALSE.equals(estObligatoire)) {
+                continue;
+            }
+
             if (!"FOURNI".equals(pc.getStatutPiece().getCode())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Pièce complémentaire non fournie : " + pc.getCatalogueComplementaire().getLibelle());
@@ -380,5 +410,75 @@ public class DossierController {
         dossier.setUpdatedAt(LocalDateTime.now());
 
         return dossierRepository.save(dossier);
+    }
+
+    // ========== Basculer applicabilité (coché / non coché) pièce commune ==========
+    @PutMapping("/{dossierId}/pieces-communes/{pieceId}/applicable")
+    public DossierPieceCommune setPieceCommuneApplicable(
+            @PathVariable Integer dossierId,
+            @PathVariable Integer pieceId,
+            @RequestBody java.util.Map<String, Object> body) {
+
+        DossierPieceCommune piece = dossierPieceCommuneRepository.findById(pieceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pièce commune introuvable"));
+
+        if (!piece.getDossier().getId().equals(dossierId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La pièce n'appartient pas à ce dossier");
+        }
+
+        boolean applicable = Boolean.TRUE.equals(body.get("applicable"));
+
+        StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
+
+        StatutPiece nonApplicable = statutPieceRepository.findByCode("NON_APPLICABLE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_APPLICABLE manquant"));
+
+        if (applicable) {
+            if ("NON_APPLICABLE".equals(piece.getStatutPiece().getCode())) {
+                piece.setStatutPiece(nonFourni);
+            }
+        } else {
+            piece.setStatutPiece(nonApplicable);
+            piece.setFichierPath(null);
+            piece.setDateFourniture(null);
+        }
+
+        return dossierPieceCommuneRepository.save(piece);
+    }
+
+    // ========== Basculer applicabilité (coché / non coché) pièce complémentaire ==========
+    @PutMapping("/{dossierId}/pieces-complementaires/{pieceId}/applicable")
+    public DossierPieceComplementaire setPieceComplementaireApplicable(
+            @PathVariable Integer dossierId,
+            @PathVariable Integer pieceId,
+            @RequestBody java.util.Map<String, Object> body) {
+
+        DossierPieceComplementaire piece = dossierPieceComplementaireRepository.findById(pieceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pièce complémentaire introuvable"));
+
+        if (!piece.getDossier().getId().equals(dossierId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La pièce n'appartient pas à ce dossier");
+        }
+
+        boolean applicable = Boolean.TRUE.equals(body.get("applicable"));
+
+        StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
+
+        StatutPiece nonApplicable = statutPieceRepository.findByCode("NON_APPLICABLE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_APPLICABLE manquant"));
+
+        if (applicable) {
+            if ("NON_APPLICABLE".equals(piece.getStatutPiece().getCode())) {
+                piece.setStatutPiece(nonFourni);
+            }
+        } else {
+            piece.setStatutPiece(nonApplicable);
+            piece.setFichierPath(null);
+            piece.setDateFourniture(null);
+        }
+
+        return dossierPieceComplementaireRepository.save(piece);
     }
 }
