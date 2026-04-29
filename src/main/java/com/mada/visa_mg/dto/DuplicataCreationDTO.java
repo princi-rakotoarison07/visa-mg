@@ -30,9 +30,11 @@ public class DuplicataCreationDTO {
 
     // Map : catalogueCommuneId -> fichierPath (retourné par /api/uploads)
     private Map<Integer, String> piecesCommunesFichiers;
+    private List<Integer> piecesCommunesFournies;
 
     // Map : catalogueComplementaireId -> fichierPath (retourné par /api/uploads)
     private Map<Integer, String> piecesComplementairesFichiers;
+    private List<Integer> piecesComplementairesFournies;
 
     @Data
     public static class DocumentDuplicataDTO {

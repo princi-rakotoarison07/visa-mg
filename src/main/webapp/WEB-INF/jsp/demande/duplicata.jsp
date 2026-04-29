@@ -349,15 +349,18 @@
             }
         }
 
-        // Etape 3 : Vérifier que toutes les pièces OBLIGATOIRES ont un fichier uploadé
+        // Etape 3 : Vérifier que toutes les pièces OBLIGATOIRES ont été cochées ou uploadées
         if (current === 3) {
             // Vérifier pièces communes
             if (window.piecesCommunes) {
                 for (const p of window.piecesCommunes) {
                     const isRequired = p.estObligatoire !== false; // Par défaut true si manquant
-                    if (isRequired && !uploadedCommunes[p.id]) {
-                        alert('Veuillez uploader le justificatif obligatoire (commune) : ' + p.libelle);
-                        return;
+                    if (isRequired) {
+                        const isChecked = document.querySelector('.chk-comm[value="' + p.id + '"]') && document.querySelector('.chk-comm[value="' + p.id + '"]').checked;
+                        if (!uploadedCommunes[p.id] && !isChecked) {
+                            alert('Veuillez cocher ou uploader le justificatif obligatoire (commune) : ' + p.libelle);
+                            return;
+                        }
                     }
                 }
             }
@@ -369,9 +372,12 @@
                 );
                 for (const p of piecesFiltered) {
                     const isRequired = p.estObligatoire !== false;
-                    if (isRequired && !uploadedComplementaires[p.id]) {
-                        alert('Veuillez uploader le justificatif obligatoire (complémentaire) : ' + p.libelle);
-                        return;
+                    if (isRequired) {
+                        const isChecked = document.querySelector('.chk-comp[value="' + p.id + '"]') && document.querySelector('.chk-comp[value="' + p.id + '"]').checked;
+                        if (!uploadedComplementaires[p.id] && !isChecked) {
+                            alert('Veuillez cocher ou uploader le justificatif obligatoire (complémentaire) : ' + p.libelle);
+                            return;
+                        }
                     }
                 }
             }
@@ -468,7 +474,7 @@
                         : '<span style="color:gray; font-size:0.8rem; font-weight:normal; margin-left:5px;">(facultatif)</span>';
                     listObligatoire.innerHTML += 
                         '<div class="checklist-item">' +
-                        '  <label>' + p.libelle + badge + '</label>' +
+                        '  <label><input type="checkbox" class="chk-comm" value="' + p.id + '"/> ' + p.libelle + badge + '</label>' +
                         '  <div class="upload-row">' +
                         '    <input type="file" id="file-comm-' + p.id + '" accept=".pdf,.jpg,.jpeg,.png" ' +
                         '           onchange="uploadPiece(' + p.id + ', this, uploadedCommunes, \'upload-status-comm-\')" />' +
@@ -493,7 +499,7 @@
                             : '<span style="color:gray; font-size:0.8rem; font-weight:normal; margin-left:5px;">(facultatif)</span>';
                         comp.innerHTML +=
                             '<div class="checklist-item">' +
-                            '  <label>' + p.libelle + badge + '</label>' +
+                            '  <label><input type="checkbox" class="chk-comp" value="' + p.id + '"/> ' + p.libelle + badge + '</label>' +
                             '  <div class="upload-row">' +
                             '    <input type="file" id="file-comp-' + p.id + '" accept=".pdf,.jpg,.jpeg,.png" ' +
                             '           onchange="uploadPiece(' + p.id + ', this, uploadedComplementaires, \'upload-status-comp-\')" />' +
@@ -631,6 +637,9 @@
             });
         }
 
+        const fourniesComm = Array.from(document.querySelectorAll('.chk-comm:checked')).map(el => parseInt(el.value));
+        const fourniesComp = Array.from(document.querySelectorAll('.chk-comp:checked')).map(el => parseInt(el.value));
+
         const duplicataDTO = {
             demandeurId: currentDemandeurId,
             passeportId: currentPasseportId,
@@ -638,7 +647,9 @@
             typeIdentiteId: parseInt(document.getElementById('type_visa_id').value),
             documents: documents,
             piecesCommunesFichiers: uploadedCommunes,
-            piecesComplementairesFichiers: uploadedComplementaires
+            piecesComplementairesFichiers: uploadedComplementaires,
+            piecesCommunesFournies: fourniesComm,
+            piecesComplementairesFournies: fourniesComp
         };
 
         try {

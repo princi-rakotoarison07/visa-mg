@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface VisaRepository extends JpaRepository<Visa, Integer> {
     List<Visa> findByPasseportId(Integer passeportId);
+    List<Visa> findByReferenceContainingIgnoreCase(String reference);
 }

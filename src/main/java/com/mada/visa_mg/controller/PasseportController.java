@@ -93,6 +93,20 @@ public class PasseportController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/visas/search")
+    public List<VisaDTO> searchVisas(@RequestParam(name = "query", defaultValue = "") String query) {
+        return visaRepository.findByReferenceContainingIgnoreCase(query).stream()
+                .map(v -> new VisaDTO(v.getId(), v.getReference(), v.getDateDebut(), v.getDateFin()))
+                .collect(Collectors.toList());
+    }
+
+    @GetMapping("/cartes/search")
+    public List<CarteDTO> searchCartes(@RequestParam(name = "query", defaultValue = "") String query) {
+        return carteResidentRepository.findByReferenceContainingIgnoreCase(query).stream()
+                .map(c -> new CarteDTO(c.getId(), c.getReference(), c.getDateDebut(), c.getDateFin()))
+                .collect(Collectors.toList());
+    }
+
     public static class PasseportSearchDTO {
         private Integer id;
         private String numeroPasseport;

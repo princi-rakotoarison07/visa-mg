@@ -31,7 +31,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>Type Demande</th>
                         <th>Demandeur</th>
                         <th>Date de création</th>
                         <th>Statut</th>
@@ -59,11 +59,16 @@ document.addEventListener("DOMContentLoaded", function() {
               tbody.innerHTML = '<tr><td colspan="5">Aucune demande trouvée.</td></tr>';
               return;
           }
+          
+          // Tri croissant par ID
+          dossiers.sort((a,b) => a.id - b.id);
+          
           dossiers.forEach(d => {
               const dateCreation = d.createdAt ? d.createdAt.substring(0, 10) : (d.dateDemande || '-');
               const nom = d.demandeur ? d.demandeur.nom + ' ' + d.demandeur.prenom : 'Identité inconnue';
               const statut = d.statutCode ? d.statutCode : 'INCONNU';
               const statutTexte = d.statutLibelle ? d.statutLibelle : statut;
+              const typeDemandeTexte = d.typeDemandeLibelle ? d.typeDemandeLibelle : 'Non défini';
               
               let badgeClass = 'badge ';
               let actionLink = '';
@@ -86,8 +91,12 @@ document.addEventListener("DOMContentLoaded", function() {
                  actionLink = '<a href="/demande/detail?id=' + d.id + '" style="color: #007bff; font-size: 1.2rem; text-decoration: none;" title="Voir détail">👁️</a>';
               }
               
+              if (d.typeDemandeCode === 'NOUVEAU_TITRE' && statut === 'APPROUVEE') {
+                 actionLink = '<span style="color: gray; font-size: 0.9rem;">Parent</span>';
+              }
+              
               tbody.innerHTML += '<tr>' +
-                  '<td>' + d.id + '</td>' +
+                  '<td>' + typeDemandeTexte + '</td>' +
                   '<td>' + nom + '</td>' +
                   '<td>' + dateCreation + '</td>' +
                   '<td><span class="' + badgeClass + '">' + statutTexte + '</span></td>' +

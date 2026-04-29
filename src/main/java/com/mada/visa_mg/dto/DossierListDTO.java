@@ -18,6 +18,8 @@ public class DossierListDTO {
     private LocalDateTime createdAt;
     private String statutCode;
     private String statutLibelle;
+    private String typeDemandeCode;
+    private String typeDemandeLibelle;
     private Integer stepToContinue;
     private Integer visaIdToContinue;
 }
