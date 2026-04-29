@@ -26,8 +26,8 @@ public class Dossier {
     @JoinColumn(name = "demandeur_id", nullable = false)
     private Demandeur demandeur;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "visa_transformable_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "visa_transformable_id")
     private VisaTransformable visaTransformable;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -15,6 +15,9 @@ public class DuplicataCreationDTO {
     private Integer demandeurId;
 
     @NotNull
+    private Integer passeportId;
+
+    // Optionnel : le visa transformable n'est pas toujours requis (ex: duplicata sans visa existant)
     private Integer visaTransformableId;
 
     @NotNull
@@ -24,6 +27,9 @@ public class DuplicataCreationDTO {
     @NotEmpty
     @Valid
     private List<DocumentDuplicataDTO> documents;
+
+    // Map : catalogueCommuneId -> fichierPath (retourné par /api/uploads)
+    private Map<Integer, String> piecesCommunesFichiers;
 
     // Map : catalogueComplementaireId -> fichierPath (retourné par /api/uploads)
     private Map<Integer, String> piecesComplementairesFichiers;

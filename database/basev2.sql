@@ -52,7 +52,8 @@ CREATE TABLE type_demande (
 INSERT INTO type_demande (code, libelle) VALUES
     ('NOUVEAU_TITRE',   'Nouveau titre de séjour'),
     ('RENOUVELLEMENT',  'Renouvellement de titre'),
-    ('DUPLICATA',       'Duplicata');
+    ('DUPLICATA',       'Duplicata'),
+    ('TRANSFERT', 'Transfert Passeport');
 
 -- ------------------------------------------------
 
@@ -140,6 +141,18 @@ CREATE TABLE passeport_statut (
 
 
 -- ============================================================
+-- 3.b TRANSFERT PASSEPORT
+-- ============================================================
+
+CREATE TABLE transfert_passeport (
+    id                  SERIAL    PRIMARY KEY,
+    ancien_passeport_id  INT REFERENCES passeport(id),
+    nouveau_passeport_id INT REFERENCES passeport(id),
+    created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+-- ============================================================
 -- 4. VISA TRANSFORMABLE  (avec tous les champs métier)
 -- ============================================================
 
@@ -162,7 +175,7 @@ CREATE TABLE visa_transformable (
 CREATE TABLE demande (
     id                    SERIAL    PRIMARY KEY,
     demandeur_id          INT       NOT NULL REFERENCES demandeur(id),
-    visa_transformable_id INT       NOT NULL REFERENCES visa_transformable(id),
+    visa_transformable_id INT       REFERENCES visa_transformable(id),
     type_visa_id          INT       NOT NULL REFERENCES type_visa(id),
     type_demande_id       INT       NOT NULL REFERENCES type_demande(id),
     statut_demande_id     INT       NOT NULL REFERENCES statut_demande(id),
@@ -281,6 +294,7 @@ FROM type_visa WHERE code = 'INVESTISSEUR';
 -- 10. PIÈCES COMPLÉMENTAIRES PAR DEMANDE  (suivi + upload)
 -- ============================================================
 
+
 CREATE TABLE demande_piece_complementaire (
     id                          SERIAL    PRIMARY KEY,
     demande_id                  INT       NOT NULL REFERENCES demande(id),
@@ -290,3 +304,4 @@ CREATE TABLE demande_piece_complementaire (
     date_fourniture             TIMESTAMP,
     UNIQUE (demande_id, catalogue_complementaire_id)
 );
+

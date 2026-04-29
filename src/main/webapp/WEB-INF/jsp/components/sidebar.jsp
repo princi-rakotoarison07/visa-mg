@@ -16,6 +16,7 @@
             <div class="sidebar__submenu" style="display: none; padding-left: 1rem; overflow: hidden; transition: max-height 0.3s ease-out;">
                 <a class="sidebar__link" href="<c:url value='/demande/nouveau'/>">Nouveau</a>
                 <a class="sidebar__link" href="<c:url value='/demande/duplicata'/>">Duplicata</a>
+                <a class="sidebar__link" href="<c:url value='/demande/transfert'/>">Transfert passeport</a>
                 <a class="sidebar__link" href="<c:url value='/demande/liste'/>">Liste</a>
             </div>
         </div>

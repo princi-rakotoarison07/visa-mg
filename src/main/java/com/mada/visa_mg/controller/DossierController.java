@@ -4,6 +4,7 @@ import com.mada.visa_mg.dto.DossierCreationDTO;
 import com.mada.visa_mg.dto.DuplicataCreationDTO;
 import com.mada.visa_mg.dto.DossierListDTO;
 import com.mada.visa_mg.dto.DossierPiecesDTO;
+import com.mada.visa_mg.dto.TransfertPasseportCreationDTO;
 import com.mada.visa_mg.entity.*;
 import com.mada.visa_mg.entity.ref.StatutDossier;
 import com.mada.visa_mg.entity.ref.StatutPiece;
@@ -43,6 +44,8 @@ public class DossierController {
     private final DossierPieceComplementaireRepository dossierPieceComplementaireRepository;
     private final VisaRepository visaRepository;
     private final CarteResidentRepository carteResidentRepository;
+    private final PasseportRepository passeportRepository;
+    private final TransfertPasseportRepository transfertPasseportRepository;
 
     public DossierController(
             DossierRepository dossierRepository,
@@ -57,7 +60,9 @@ public class DossierController {
             DossierPieceCommuneRepository dossierPieceCommuneRepository,
             DossierPieceComplementaireRepository dossierPieceComplementaireRepository,
             VisaRepository visaRepository,
-            CarteResidentRepository carteResidentRepository
+            CarteResidentRepository carteResidentRepository,
+            PasseportRepository passeportRepository,
+            TransfertPasseportRepository transfertPasseportRepository
     ) {
         this.dossierRepository = dossierRepository;
         this.demandeurRepository = demandeurRepository;
@@ -72,6 +77,8 @@ public class DossierController {
         this.dossierPieceComplementaireRepository = dossierPieceComplementaireRepository;
         this.visaRepository = visaRepository;
         this.carteResidentRepository = carteResidentRepository;
+        this.passeportRepository = passeportRepository;
+        this.transfertPasseportRepository = transfertPasseportRepository;
     }
 
     @PostMapping
@@ -148,14 +155,121 @@ public class DossierController {
         return dossier;
     }
 
+    @PostMapping("/transfert")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Dossier createTransfertPasseport(@Valid @RequestBody TransfertPasseportCreationDTO dto) {
+        Demandeur demandeur = demandeurRepository.findById(dto.getDemandeurId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "demandeurId invalide"));
+
+        Passeport ancienPasseport = passeportRepository.findById(dto.getAncienPasseportId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "ancienPasseportId invalide"));
+
+        Passeport nouveauPasseport = passeportRepository.findById(dto.getNouveauPasseportId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "nouveauPasseportId invalide"));
+
+        if (ancienPasseport.getDemandeur() != null && !ancienPasseport.getDemandeur().getId().equals(demandeur.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "L'ancien passeport n'appartient pas au demandeur");
+        }
+
+        if (nouveauPasseport.getDemandeur() != null && !nouveauPasseport.getDemandeur().getId().equals(demandeur.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Le nouveau passeport n'appartient pas au demandeur");
+        }
+
+        TypeIdentite typeIdentite = typeIdentiteRepository.findById(dto.getTypeIdentiteId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "typeIdentiteId invalide"));
+
+        TypeDemande typeDemande = typeDemandeRepository.findByCode("TRANSFERT")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "TypeDemande TRANSFERT manquant"));
+
+        StatutDossier creer = statutDossierRepository.findByCode("CREER")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut CREER manquant"));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Dossier dossier = Dossier.builder()
+                .demandeur(demandeur)
+                .visaTransformable(null)
+                .typeIdentite(typeIdentite)
+                .typeDemande(typeDemande)
+                .statutDossier(creer)
+                .dateDemande(LocalDate.now())
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        dossier = dossierRepository.save(dossier);
+
+        TransfertPasseport transfert = TransfertPasseport.builder()
+                .ancienPasseport(ancienPasseport)
+                .nouveauPasseport(nouveauPasseport)
+                .createdAt(now)
+                .build();
+
+        transfertPasseportRepository.save(transfert);
+
+        if (dto.getVisasAUpdater() != null && !dto.getVisasAUpdater().isEmpty()) {
+            List<Visa> visas = visaRepository.findAllById(dto.getVisasAUpdater());
+            for (Visa v : visas) {
+                // S'assurer qu'ils appartiennent à l'ancien passeport par sécurité
+                if (v.getPasseport().getId().equals(ancienPasseport.getId())) {
+                    v.setPasseport(nouveauPasseport);
+                }
+            }
+            visaRepository.saveAll(visas);
+        }
+
+        if (dto.getCartesAUpdater() != null && !dto.getCartesAUpdater().isEmpty()) {
+            List<CarteResident> cartes = carteResidentRepository.findAllById(dto.getCartesAUpdater());
+            for (CarteResident c : cartes) {
+                if (c.getPasseport().getId().equals(ancienPasseport.getId())) {
+                    c.setPasseport(nouveauPasseport);
+                }
+            }
+            carteResidentRepository.saveAll(cartes);
+        }
+
+        // Création optionnelle de nouveaux documents (Visa et/ou Carte Résident)
+        if (dto.getDocuments() != null && !dto.getDocuments().isEmpty()) {
+            for (TransfertPasseportCreationDTO.DocumentTransfertDTO doc : dto.getDocuments()) {
+                if ("VISA".equals(doc.getTypeDocument())) {
+                    Visa visa = Visa.builder()
+                            .dossier(dossier)
+                            .passeport(nouveauPasseport)
+                            .reference(doc.getReferenceDocument())
+                            .dateDebut(doc.getDateDebutDocument())
+                            .dateFin(doc.getDateFinDocument())
+                            .createdAt(now)
+                            .build();
+                    visaRepository.save(visa);
+                } else if ("CARTE_RESIDENT".equals(doc.getTypeDocument())) {
+                    CarteResident carte = CarteResident.builder()
+                            .dossier(dossier)
+                            .passeport(nouveauPasseport)
+                            .reference(doc.getReferenceDocument())
+                            .dateDebut(doc.getDateDebutDocument())
+                            .dateFin(doc.getDateFinDocument())
+                            .createdAt(now)
+                            .build();
+                    carteResidentRepository.save(carte);
+                }
+            }
+        }
+
+        return dossier;
+    }
+
     @PostMapping("/duplicata")
     @ResponseStatus(HttpStatus.CREATED)
     public Dossier createDuplicata(@Valid @RequestBody DuplicataCreationDTO dto) {
         Demandeur demandeur = demandeurRepository.findById(dto.getDemandeurId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "demandeurId invalide"));
 
-        VisaTransformable visaTransformable = visaTransformableRepository.findById(dto.getVisaTransformableId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "visaTransformableId invalide"));
+        // Visa transformable est maintenant optionnel
+        VisaTransformable visaTransformable = null;
+        if (dto.getVisaTransformableId() != null) {
+            visaTransformable = visaTransformableRepository.findById(dto.getVisaTransformableId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "visaTransformableId invalide"));
+        }
 
         TypeIdentite typeIdentite = typeIdentiteRepository.findById(dto.getTypeIdentiteId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "typeIdentiteId invalide"));
@@ -182,12 +296,16 @@ public class DossierController {
 
         dossier = dossierRepository.save(dossier);
 
+        // Le passeport est obligatoire et fourni par l'UI
+        Passeport passeportPourDocs = passeportRepository.findById(dto.getPasseportId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "passeportId invalide"));
+
         // Création des documents finaux (Visa et/ou Carte Résident)
         for (DuplicataCreationDTO.DocumentDuplicataDTO doc : dto.getDocuments()) {
             if ("VISA".equals(doc.getTypeDocument())) {
                 Visa visa = Visa.builder()
                         .dossier(dossier)
-                        .passeport(visaTransformable.getPasseport())
+                        .passeport(passeportPourDocs)
                         .reference(doc.getReferenceDocument())
                         .dateDebut(doc.getDateDebutDocument())
                         .dateFin(doc.getDateFinDocument())
@@ -197,7 +315,7 @@ public class DossierController {
             } else if ("CARTE_RESIDENT".equals(doc.getTypeDocument())) {
                 CarteResident carte = CarteResident.builder()
                         .dossier(dossier)
-                        .passeport(visaTransformable.getPasseport())
+                        .passeport(passeportPourDocs)
                         .reference(doc.getReferenceDocument())
                         .dateDebut(doc.getDateDebutDocument())
                         .dateFin(doc.getDateFinDocument())
@@ -213,13 +331,18 @@ public class DossierController {
         StatutPiece fourni = statutPieceRepository.findByCode("FOURNI")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece FOURNI manquant"));
 
-        // Pièces communes (toujours NON_FOURNI à la création)
+        // Pièces communes : si un fichier a été uploadé, on met FOURNI + fichierPath
+        java.util.Map<Integer, String> fichiersCommunes = dto.getPiecesCommunesFichiers();
+
         List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
         for (CataloguePieceCommune cat : piecesCommunes) {
+            boolean hasFichier = fichiersCommunes != null && fichiersCommunes.containsKey(cat.getId());
             DossierPieceCommune piece = DossierPieceCommune.builder()
                     .dossier(dossier)
                     .cataloguePiece(cat)
-                    .statutPiece(nonFourni)
+                    .statutPiece(hasFichier ? fourni : nonFourni)
+                    .fichierPath(hasFichier ? fichiersCommunes.get(cat.getId()) : null)
+                    .dateFourniture(hasFichier ? now : null)
                     .build();
             dossierPieceCommuneRepository.save(piece);
         }

@@ -88,7 +88,7 @@
                     <button type="button" onclick="nextStep(1, 2)">Suivant</button>
                 </div>
 
-                <!-- ETAPE 2: Passeport et Visa -->
+                <!-- ETAPE 2: Passeport et Visa Transformable (optionnel) -->
                 <div id="step-2" class="step">
                     <h2>Étape 2 : Passeport et Visa Transformable</h2>
                     <h3>Passeport</h3>
@@ -111,22 +111,32 @@
                         <input type="date" id="dateExpirationPasseport" name="date_expiration" required />
                     </div>
 
-                    <h3>Visa Transformable</h3>
-                    <div class="form-group">
-                        <label>Numéro de référence</label>
-                        <input type="text" id="numeroReferenceVisa" name="numero_reference" />
+                    <!-- Visa Transformable : OPTIONNEL -->
+                    <div class="checkbox-group" style="margin-top: 20px;">
+                        <label style="font-size: 1.1rem;">
+                            <input type="checkbox" id="chk_visa_transformable" onchange="toggleVisaTransformable()" />
+                            Ajouter un Visa Transformable (optionnel)
+                        </label>
+                        <div class="hint" style="font-size:0.85rem; color:#6c757d; margin-top:4px;">Cochez uniquement si le demandeur possède un visa transformable à associer au duplicata.</div>
                     </div>
-                    <div class="form-group">
-                        <label>Lieu d'entrée *</label>
-                        <input type="text" id="lieuEntree" name="lieu_entree" required />
-                    </div>
-                    <div class="form-group">
-                        <label>Date d'entrée *</label>
-                        <input type="date" id="dateEntree" name="date_entree" required />
-                    </div>
-                    <div class="form-group">
-                        <label>Date d'expiration *</label>
-                        <input type="date" id="dateExpirationVisa" name="date_expiration_visa" required />
+                    <div id="section_visa_transformable" class="doc-section" style="display:none; margin-top:10px;">
+                        <h4>Visa Transformable</h4>
+                        <div class="form-group">
+                            <label>Numéro de référence</label>
+                            <input type="text" id="numeroReferenceVisa" name="numero_reference" />
+                        </div>
+                        <div class="form-group">
+                            <label>Lieu d'entrée *</label>
+                            <input type="text" id="lieuEntree" name="lieu_entree" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date d'entrée *</label>
+                            <input type="date" id="dateEntree" name="date_entree" />
+                        </div>
+                        <div class="form-group">
+                            <label>Date d'expiration *</label>
+                            <input type="date" id="dateExpirationVisa" name="date_expiration_visa" />
+                        </div>
                     </div>
                     <button type="button" onclick="prevStep(2, 1)">Précédent</button>
                     <button type="button" onclick="nextStep(2, 3)">Suivant</button>
@@ -283,7 +293,7 @@
             } catch(e) { alert("Erreur réseau"); return; }
         }
 
-        // Etape 2 : Sauvegarde du passeport et visa
+        // Etape 2 : Sauvegarde du passeport et visa (optionnel)
         if (current === 2) {
             const passeportDTO = {
                 demandeurId: currentDemandeurId,
@@ -303,25 +313,40 @@
                 currentPasseportId = passeport.id;
             } catch(e) { alert("Erreur réseau Passeport"); return; }
 
-            const visaDTO = {
-                demandeurId: currentDemandeurId,
-                passeportId: currentPasseportId,
-                numeroReference: document.getElementById('numeroReferenceVisa').value || null,
-                lieuEntree: document.getElementById('lieuEntree').value,
-                dateEntree: document.getElementById('dateEntree').value,
-                dateExpiration: document.getElementById('dateExpirationVisa').value,
-                dateSortieRef: null
-            };
-            try {
-                const resV = await fetch('/api/visas', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(visaDTO)
-                });
-                if (!resV.ok) { alert("Erreur Visa : " + await resV.text()); return; }
-                const visa = await resV.json();
-                currentVisaId = visa.id;
-            } catch(e) { alert("Erreur réseau Visa"); return; }
+            // Visa Transformable : seulement si la checkbox est cochée
+            const visaTransformableChecked = document.getElementById('chk_visa_transformable').checked;
+            if (visaTransformableChecked) {
+                const lieuEntree = document.getElementById('lieuEntree').value.trim();
+                const dateEntree = document.getElementById('dateEntree').value;
+                const dateExpVisa = document.getElementById('dateExpirationVisa').value;
+
+                if (!lieuEntree || !dateEntree || !dateExpVisa) {
+                    alert('Veuillez remplir tous les champs obligatoires du Visa Transformable (lieu, dates).');
+                    return;
+                }
+
+                const visaDTO = {
+                    demandeurId: currentDemandeurId,
+                    passeportId: currentPasseportId,
+                    numeroReference: document.getElementById('numeroReferenceVisa').value || null,
+                    lieuEntree: lieuEntree,
+                    dateEntree: dateEntree,
+                    dateExpiration: dateExpVisa,
+                    dateSortieRef: null
+                };
+                try {
+                    const resV = await fetch('/api/visas', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(visaDTO)
+                    });
+                    if (!resV.ok) { alert("Erreur Visa : " + await resV.text()); return; }
+                    const visa = await resV.json();
+                    currentVisaId = visa.id;
+                } catch(e) { alert("Erreur réseau Visa"); return; }
+            } else {
+                currentVisaId = null; // Pas de visa transformable
+            }
         }
 
         // Etape 3 : Vérifier que toutes les pièces OBLIGATOIRES ont un fichier uploadé
@@ -369,6 +394,12 @@
 
         // Mettre à jour les champs required
         validateStep(prev);
+    }
+
+    // ========== Toggle Visa Transformable (Étape 2) ==========
+    function toggleVisaTransformable() {
+        const checked = document.getElementById('chk_visa_transformable').checked;
+        document.getElementById('section_visa_transformable').style.display = checked ? 'block' : 'none';
     }
 
     // ========== Toggle pour les sections de document (Étape 4) ==========
@@ -602,7 +633,8 @@
 
         const duplicataDTO = {
             demandeurId: currentDemandeurId,
-            visaTransformableId: currentVisaId,
+            passeportId: currentPasseportId,
+            visaTransformableId: currentVisaId || null,  // null si visa transformable non renseigné
             typeIdentiteId: parseInt(document.getElementById('type_visa_id').value),
             documents: documents,
             piecesCommunesFichiers: uploadedCommunes,

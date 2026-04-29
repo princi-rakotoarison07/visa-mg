@@ -16,6 +16,11 @@ public class DemandeWebController {
         return "demande/duplicata";
     }
 
+    @GetMapping("/demande/transfert")
+    public String transfertPasseportView() {
+        return "demande/transfert";
+    }
+
     @GetMapping("/demande/liste")
     public String listeDemandeView() {
         return "demande/liste";
