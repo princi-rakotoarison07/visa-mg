@@ -19,9 +19,9 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/passeports")
 public class PasseportController {
 
-    private final PasseportRepository passeportRepository;
-    private final DemandeurRepository demandeurRepository;
-    private final NationaliteRepository nationaliteRepository;
+    private final PasseportRepository     passeportRepository;
+    private final DemandeurRepository     demandeurRepository;
+    private final NationaliteRepository   nationaliteRepository;
     private final com.mada.visa_mg.repository.VisaRepository visaRepository;
     private final com.mada.visa_mg.repository.CarteResidentRepository carteResidentRepository;
 
@@ -67,7 +67,7 @@ public class PasseportController {
 
     @GetMapping("/search")
     public List<PasseportSearchDTO> search(@RequestParam(name = "query", required = false, defaultValue = "") String query) {
-        return passeportRepository.findByNumeroPasseportContainingIgnoreCase(query)
+        return     passeportRepository.findByNumeroPasseportContainingIgnoreCase(query)
                 .stream()
                 .map(p -> new PasseportSearchDTO(p.getId(), p.getNumeroPasseport()))
                 .collect(Collectors.toList());
@@ -75,8 +75,13 @@ public class PasseportController {
 
     @GetMapping("/{id}")
     public Passeport getById(@PathVariable Integer id) {
-        return passeportRepository.findById(id)
+        return     passeportRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Passeport introuvable"));
+    }
+
+    @GetMapping("/demandeur/{demandeurId}")
+    public List<Passeport> getByDemandeurId(@PathVariable Integer demandeurId) {
+        return     passeportRepository.findByDemandeurId(demandeurId);
     }
 
     @GetMapping("/{id}/visas")
