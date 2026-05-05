@@ -22,4 +22,5 @@ public class DossierListDTO {
     private String typeDemandeLibelle;
     private Integer stepToContinue;
     private Integer visaIdToContinue;
+    private String passportNumero; // Added for advanced filtering
 }

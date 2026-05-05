@@ -44,7 +44,7 @@ public class DossierController {
     private final DossierPieceComplementaireRepository dossierPieceComplementaireRepository;
     private final VisaRepository visaRepository;
     private final CarteResidentRepository carteResidentRepository;
-    private final PasseportRepository passeportRepository;
+    private final PasseportRepository     passeportRepository;
     private final TransfertPasseportRepository transfertPasseportRepository;
 
     public DossierController(
@@ -438,6 +438,16 @@ public class DossierController {
         
         List<Dossier> dossiers = dossierRepository.findAll();
         for (Dossier d : dossiers) {
+            String passportNum = null;
+            if (d.getVisaTransformable() != null && d.getVisaTransformable().getPasseport() != null) {
+                passportNum = d.getVisaTransformable().getPasseport().getNumeroPasseport();
+            } else {
+                List<Passeport> pps = passeportRepository.findByDemandeurId(d.getDemandeur().getId());
+                if (!pps.isEmpty()) {
+                    passportNum = pps.get(pps.size() - 1).getNumeroPasseport();
+                }
+            }
+
             result.add(DossierListDTO.builder()
                 .id(d.getId())
                 .demandeur(d.getDemandeur())
@@ -446,6 +456,7 @@ public class DossierController {
                 .statutLibelle(d.getStatutDossier().getLibelle())
                 .typeDemandeCode(d.getTypeDemande() != null ? d.getTypeDemande().getCode() : null)
                 .typeDemandeLibelle(d.getTypeDemande() != null ? d.getTypeDemande().getLibelle() : null)
+                .passportNumero(passportNum)
                 .build()
             );
         }
@@ -460,6 +471,12 @@ public class DossierController {
                         .filter(v -> v.getDemandeur().getId().equals(dem.getId()))
                         .findFirst();
                 
+                String passportNum = null;
+                List<Passeport> pps = passeportRepository.findByDemandeurId(dem.getId());
+                if (!pps.isEmpty()) {
+                    passportNum = pps.get(pps.size() - 1).getNumeroPasseport();
+                }
+
                 if (optVisa.isPresent()) {
                     result.add(DossierListDTO.builder()
                         .id(dem.getId()) // ID du demandeur servant de référence
@@ -469,6 +486,7 @@ public class DossierController {
                         .statutLibelle("Brouillon (Étape 3)")
                         .stepToContinue(3)
                         .visaIdToContinue(optVisa.get().getId())
+                        .passportNumero(passportNum)
                         .build()
                     );
                 } else {
@@ -479,6 +497,7 @@ public class DossierController {
                         .statutCode("BROUILLON")
                         .statutLibelle("Brouillon (Étape 2)")
                         .stepToContinue(2)
+                        .passportNumero(passportNum)
                         .build()
                     );
                 }
