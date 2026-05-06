@@ -36,6 +36,11 @@
         
         #rejet-form { display: none; margin-top: 10px; padding: 15px; border: 1px solid #dc3545; border-radius: 4px; background: #fff; }
         .badge-statut { display: inline-block; padding: 5px 10px; border-radius: 12px; font-weight: bold; color: white; }
+        
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .history-table th, .history-table td { padding: 10px; border: 1px solid #eee; text-align: left; }
+        .history-table th { background-color: #f8f9fa; color: #555; }
+        .history-date { white-space: nowrap; color: #666; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -84,6 +89,13 @@
                 </div>
             </div>
 
+            <div class="details-section">
+                <h2>Historique des Statuts</h2>
+                <div id="history-container">
+                    <p>Chargement de l'historique...</p>
+                </div>
+            </div>
+
         </section>
     </main>
 </div>
@@ -102,6 +114,7 @@
     document.addEventListener("DOMContentLoaded", function() {
         chargerDossier();
         chargerPieces();
+        chargerHistorique();
     });
 
     function getStatutColor(code) {
@@ -318,8 +331,18 @@
 
     // -- Pour le sprint suivant, la partie approbation/rejet
     function approuverDemande() {
-        alert("Approbtion à implémenter dans l'API...");
-        // Appel API à faire...
+        if (!confirm("Voulez-vous approuver ce dossier ?")) return;
+        
+        fetch('/api/dossiers/' + dossierId + '/approuver', {
+            method: 'PUT'
+        })
+        .then(res => {
+            if(!res.ok) throw new Error("Erreur lors de l'approbation");
+            alert("Dossier approuvé !");
+            chargerDossier();
+            chargerHistorique();
+        })
+        .catch(err => alert("Erreur: " + err.message));
     }
 
     function rejeterDemande() {
@@ -328,8 +351,53 @@
             alert("Veuillez saisir un motif de rejet");
             return;
         }
-        alert("Rejet à implémenter dans l'API avec motif: " + motif);
-        // Appel API à faire...
+        
+        fetch('/api/dossiers/' + dossierId + '/rejeter', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motif: motif })
+        })
+        .then(res => {
+            if(!res.ok) throw new Error("Erreur lors du rejet");
+            alert("Dossier rejeté !");
+            document.getElementById('rejet-form').style.display = 'none';
+            chargerDossier();
+            chargerHistorique();
+        })
+        .catch(err => alert("Erreur: " + err.message));
+    }
+
+    function chargerHistorique() {
+        fetch('/api/dossiers/' + dossierId + '/historique')
+            .then(res => res.json())
+            .then(data => {
+                const container = document.getElementById('history-container');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p>Aucun historique disponible.</p>';
+                    return;
+                }
+
+                let html = '<table class="history-table">' +
+                           '<thead><tr><th>Date</th><th>Statut</th><th>Commentaire</th><th>Par</th></tr></thead>' +
+                           '<tbody>';
+                
+                data.forEach(h => {
+                    const date = new Date(h.dateChangementStatut).toLocaleString();
+                    html += '<tr>' +
+                            '  <td class="history-date">' + date + '</td>' +
+                            '  <td><span class="badge-statut" style="background-color:' + getStatutColor(h.statutDossier.code) + '; font-size:0.8rem;">' + h.statutDossier.libelle + '</span></td>' +
+                            '  <td>' + (h.commentaire || '-') + '</td>' +
+                            '  <td>' + (h.changedBy || 'SYSTEM') + '</td>' +
+                            '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Erreur historique", err);
+                document.getElementById('history-container').innerHTML = '<p style="color:red;">Erreur lors du chargement de l\'historique.</p>';
+            });
     }
 
 </script>

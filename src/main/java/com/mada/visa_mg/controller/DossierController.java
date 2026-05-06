@@ -15,10 +15,14 @@ import com.mada.visa_mg.repository.ref.StatutDossierRepository;
 import com.mada.visa_mg.repository.ref.StatutPieceRepository;
 import com.mada.visa_mg.repository.ref.TypeDemandeRepository;
 import com.mada.visa_mg.repository.ref.TypeIdentiteRepository;
+import com.mada.visa_mg.repository.ref.StatutPasseportRepository;
+import com.mada.visa_mg.entity.ref.StatutPasseport;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,6 +33,8 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/dossiers")
+@Transactional
+@Slf4j
 public class DossierController {
 
     private final DossierRepository dossierRepository;
@@ -46,6 +52,9 @@ public class DossierController {
     private final CarteResidentRepository carteResidentRepository;
     private final PasseportRepository     passeportRepository;
     private final TransfertPasseportRepository transfertPasseportRepository;
+    private final DossierStatutHistoriqueRepository dossierStatutHistoriqueRepository;
+    private final PasseportStatutRepository passeportStatutRepository;
+    private final StatutPasseportRepository statutPasseportRepository;
 
     public DossierController(
             DossierRepository dossierRepository,
@@ -62,7 +71,10 @@ public class DossierController {
             VisaRepository visaRepository,
             CarteResidentRepository carteResidentRepository,
             PasseportRepository passeportRepository,
-            TransfertPasseportRepository transfertPasseportRepository
+            TransfertPasseportRepository transfertPasseportRepository,
+            DossierStatutHistoriqueRepository dossierStatutHistoriqueRepository,
+            PasseportStatutRepository passeportStatutRepository,
+            StatutPasseportRepository statutPasseportRepository
     ) {
         this.dossierRepository = dossierRepository;
         this.demandeurRepository = demandeurRepository;
@@ -79,7 +91,11 @@ public class DossierController {
         this.carteResidentRepository = carteResidentRepository;
         this.passeportRepository = passeportRepository;
         this.transfertPasseportRepository = transfertPasseportRepository;
+        this.dossierStatutHistoriqueRepository = dossierStatutHistoriqueRepository;
+        this.passeportStatutRepository = passeportStatutRepository;
+        this.statutPasseportRepository = statutPasseportRepository;
     }
+
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -113,6 +129,10 @@ public class DossierController {
                 .build();
 
         dossier = dossierRepository.save(dossier);
+
+        // Sauvegarder l'historique
+        log.info("Saving history for dossier creation: {}", dossier.getId());
+        saveDossierHistory(dossier, "Création de la demande initiale");
 
         StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
@@ -218,6 +238,11 @@ public class DossierController {
                 .updatedAt(now)
                 .build();
         dossierTransfert = dossierRepository.save(dossierTransfert);
+        saveDossierHistory(dossierTransfert, "Demande de transfert de passeport créée");
+
+        // Mise à jour des statuts des passeports
+        updatePasseportStatus(ancienPasseport, "EXPIRE", "Passeport remplacé par transfert");
+        updatePasseportStatus(nouveauPasseport, "ACTIF", "Nouveau passeport activé par transfert");
 
         TransfertPasseport transfert = TransfertPasseport.builder()
                 .ancienPasseport(ancienPasseport)
@@ -333,6 +358,7 @@ public class DossierController {
                 .updatedAt(now)
                 .build();
         dossierDuplicata = dossierRepository.save(dossierDuplicata);
+        saveDossierHistory(dossierDuplicata, "Demande de duplicata créée");
 
         // Le passeport est obligatoire et fourni par l'UI
         Passeport passeportPourDocs = passeportRepository.findById(dto.getPasseportId())
@@ -430,6 +456,11 @@ public class DossierController {
         List<DossierPieceComplementaire> complementaires = dossierPieceComplementaireRepository.findByDossierId(id);
 
         return new DossierPiecesDTO(communes, complementaires);
+    }
+
+    @GetMapping("/{id}/historique")
+    public List<DossierStatutHistorique> getHistorique(@PathVariable Integer id) {
+        return dossierStatutHistoriqueRepository.findByDossierIdOrderByDateChangementStatutDesc(id);
     }
 
     @GetMapping
@@ -600,7 +631,46 @@ public class DossierController {
         dossier.setStatutDossier(scanTermine);
         dossier.setUpdatedAt(LocalDateTime.now());
 
-        return dossierRepository.save(dossier);
+        dossier = dossierRepository.save(dossier);
+        saveDossierHistory(dossier, "Le scan des pièces est terminé, dossier prêt pour traitement");
+
+        return dossier;
+    }
+
+    @PutMapping("/{id}/approuver")
+    public Dossier approuver(@PathVariable Integer id) {
+        Dossier dossier = dossierRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+        
+        StatutDossier approuvee = statutDossierRepository.findByCode("APPROUVEE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut APPROUVEE manquant"));
+        
+        dossier.setStatutDossier(approuvee);
+        dossier.setDateTraitement(LocalDate.now());
+        dossier.setUpdatedAt(LocalDateTime.now());
+        
+        dossier = dossierRepository.save(dossier);
+        saveDossierHistory(dossier, "La demande a été approuvée");
+        
+        return dossier;
+    }
+
+    @PutMapping("/{id}/rejeter")
+    public Dossier rejeter(@PathVariable Integer id, @RequestBody java.util.Map<String, String> body) {
+        Dossier dossier = dossierRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+        
+        StatutDossier rejetee = statutDossierRepository.findByCode("REJETEE")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut REJETEE manquant"));
+        
+        String motif = body.get("motif");
+        dossier.setStatutDossier(rejetee);
+        dossier.setUpdatedAt(LocalDateTime.now());
+        
+        dossier = dossierRepository.save(dossier);
+        saveDossierHistory(dossier, "La demande a été rejetée. Motif : " + (motif != null ? motif : "Non spécifié"));
+        
+        return dossier;
     }
 
     // ========== Basculer applicabilité (coché / non coché) pièce commune ==========
@@ -671,5 +741,46 @@ public class DossierController {
         }
 
         return dossierPieceComplementaireRepository.save(piece);
+    }
+
+    // ========== Helpers pour l'historique ==========
+    private void saveDossierHistory(Dossier dossier, String commentaire) {
+        try {
+            log.info("Attempting to save history for dossier ID: {} with status: {}", 
+                     dossier.getId(), 
+                     (dossier.getStatutDossier() != null ? dossier.getStatutDossier().getCode() : "NULL"));
+            
+            DossierStatutHistorique history = DossierStatutHistorique.builder()
+                    .dossier(dossier)
+                    .statutDossier(dossier.getStatutDossier())
+                    .dateChangementStatut(LocalDateTime.now())
+                    .commentaire(commentaire)
+                    .changedBy("SYSTEM")
+                    .build();
+            
+            DossierStatutHistorique saved = dossierStatutHistoriqueRepository.saveAndFlush(history);
+            log.info("History saved successfully with ID: {}", saved.getId());
+        } catch (Exception e) {
+            log.error("Failed to save dossier history: {}", e.getMessage(), e);
+        }
+    }
+
+    private void updatePasseportStatus(Passeport passeport, String statusCode, String commentaire) {
+        try {
+            StatutPasseport statut = statutPasseportRepository.findByCode(statusCode)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut passeport " + statusCode + " manquant"));
+            
+            PasseportStatut history = PasseportStatut.builder()
+                    .passeport(passeport)
+                    .statutPasseport(statut)
+                    .dateChangementStatut(LocalDateTime.now())
+                    .commentaire(commentaire)
+                    .build();
+            
+            passeportStatutRepository.saveAndFlush(history);
+            log.info("Passport history saved for passport: {} with status: {}", passeport.getNumeroPasseport(), statusCode);
+        } catch (Exception e) {
+            log.error("Failed to save passport history: {}", e.getMessage());
+        }
     }
 }

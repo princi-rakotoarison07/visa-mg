@@ -21,6 +21,7 @@ public class DossierStatutHistorique {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "demande_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Dossier dossier;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

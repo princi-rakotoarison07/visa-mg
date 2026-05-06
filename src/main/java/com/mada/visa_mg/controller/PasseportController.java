@@ -7,6 +7,10 @@ import com.mada.visa_mg.entity.ref.Nationalite;
 import com.mada.visa_mg.repository.DemandeurRepository;
 import com.mada.visa_mg.repository.PasseportRepository;
 import com.mada.visa_mg.repository.ref.NationaliteRepository;
+import com.mada.visa_mg.repository.ref.StatutPasseportRepository;
+import com.mada.visa_mg.entity.ref.StatutPasseport;
+import com.mada.visa_mg.entity.PasseportStatut;
+import com.mada.visa_mg.repository.PasseportStatutRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -24,19 +28,25 @@ public class PasseportController {
     private final NationaliteRepository   nationaliteRepository;
     private final com.mada.visa_mg.repository.VisaRepository visaRepository;
     private final com.mada.visa_mg.repository.CarteResidentRepository carteResidentRepository;
+    private final PasseportStatutRepository passeportStatutRepository;
+    private final StatutPasseportRepository statutPasseportRepository;
 
     public PasseportController(
             PasseportRepository passeportRepository,
             DemandeurRepository demandeurRepository,
             NationaliteRepository nationaliteRepository,
             com.mada.visa_mg.repository.VisaRepository visaRepository,
-            com.mada.visa_mg.repository.CarteResidentRepository carteResidentRepository
+            com.mada.visa_mg.repository.CarteResidentRepository carteResidentRepository,
+            PasseportStatutRepository passeportStatutRepository,
+            StatutPasseportRepository statutPasseportRepository
     ) {
         this.passeportRepository = passeportRepository;
         this.demandeurRepository = demandeurRepository;
         this.nationaliteRepository = nationaliteRepository;
         this.visaRepository = visaRepository;
         this.carteResidentRepository = carteResidentRepository;
+        this.passeportStatutRepository = passeportStatutRepository;
+        this.statutPasseportRepository = statutPasseportRepository;
     }
 
     @PostMapping
@@ -62,7 +72,21 @@ public class PasseportController {
                 .dateExpiration(dto.getDateExpiration())
                 .build();
 
-        return passeportRepository.save(passeport);
+        passeport = passeportRepository.save(passeport);
+
+        // Enregistrer le statut initial ACTIF
+        StatutPasseport actif = statutPasseportRepository.findByCode("ACTIF")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Statut ACTIF manquant"));
+        
+        PasseportStatut history = PasseportStatut.builder()
+                .passeport(passeport)
+                .statutPasseport(actif)
+                .dateChangementStatut(java.time.LocalDateTime.now())
+                .commentaire("Statut initial à la création")
+                .build();
+        passeportStatutRepository.save(history);
+
+        return passeport;
     }
 
     @GetMapping("/search")
