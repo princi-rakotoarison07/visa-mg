@@ -8,4 +8,5 @@ import java.util.List;
 public interface CarteResidentRepository extends JpaRepository<CarteResident, Integer> {
     List<CarteResident> findByPasseportId(Integer passeportId);
     List<CarteResident> findByReferenceContainingIgnoreCase(String reference);
+    List<CarteResident> findByDossierId(Integer dossierId);
 }

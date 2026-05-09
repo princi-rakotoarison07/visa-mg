@@ -28,6 +28,7 @@
         .progress-bar { height: 100%; background-color: #28a745; text-align: center; color: white; line-height: 20px; font-size: 0.8rem; transition: width 0.3s ease; }
         
         .action-buttons { margin-top: 20px; display: flex; gap: 10px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .document-badge { background: #6f42c1; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; margin-right: 5px; }
         .btn-scan { background-color: #17a2b8; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-scan:disabled { background-color: #ccc; cursor: not-allowed; }
         .btn-approuver { background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
@@ -55,14 +56,28 @@
             <a href="/demande/liste" class="btn-retour" style="margin-bottom: 20px; display: inline-block;">← Retour à la liste</a>
 
             <div class="details-section">
-                <h2>Informations Générales <span id="dossier-statut" class="badge-statut"></span></h2>
-                <div class="info-grid" id="info-demandeur">
+                <h2>👤 État Civil & Coordonnées</h2>
+                <div class="info-grid" id="info-identite">
                     <div>Chargement...</div>
                 </div>
             </div>
 
             <div class="details-section">
-                <h2>Pièces Justificatives</h2>
+                <h2>🛂 Passeport(s) du Demandeur</h2>
+                <div id="info-passeports">
+                    <p>Chargement des passeports...</p>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <h2>📝 Détails de la Demande <span id="dossier-statut" class="badge-statut"></span></h2>
+                <div class="info-grid" id="info-demande">
+                    <div>Chargement...</div>
+                </div>
+            </div>
+
+            <div class="details-section">
+                <h2>📁 Pièces Justificatives</h2>
                 
                 <div class="progress-container">
                     <div id="progress-bar" class="progress-bar" style="width: 0%">0 / 0</div>
@@ -89,8 +104,15 @@
                 </div>
             </div>
 
+            <div class="details-section" id="section-documents" style="display:none;">
+                <h2>📜 Titres Émis (Visas / Cartes)</h2>
+                <div id="info-documents">
+                    <p>Chargement des titres...</p>
+                </div>
+            </div>
+
             <div class="details-section">
-                <h2>Historique des Statuts</h2>
+                <h2>🕒 Historique des Statuts</h2>
                 <div id="history-container">
                     <p>Chargement de l'historique...</p>
                 </div>
@@ -115,6 +137,7 @@
         chargerDossier();
         chargerPieces();
         chargerHistorique();
+        chargerDocuments();
     });
 
     function getStatutColor(code) {
@@ -151,15 +174,28 @@
                 }
 
                 if (d.demandeur) {
-                    document.getElementById('info-demandeur').innerHTML = 
-                        '<div><strong>Nom :</strong> ' + d.demandeur.nom + ' ' + d.demandeur.prenom + '</div>' +
-                        '<div><strong>Date demande :</strong> ' + d.dateDemande + '</div>' +
-                        '<div><strong>Type de Demande :</strong> ' + d.typeDemande.libelle + '</div>' +
-                        '<div><strong>Type Visa :</strong> ' + d.typeIdentite.libelle + '</div>' +
+                    // Section Identité
+                    document.getElementById('info-identite').innerHTML = 
+                        '<div><strong>Nom Complet :</strong> ' + d.demandeur.nom + ' ' + d.demandeur.prenom + '</div>' +
+                        '<div><strong>Date Naissance :</strong> ' + d.demandeur.dateNaissance + '</div>' +
+                        '<div><strong>Lieu Naissance :</strong> ' + d.demandeur.lieuNaissance + '</div>' +
+                        '<div><strong>Nationalité :</strong> ' + (d.demandeur.nationalite ? d.demandeur.nationalite.libelle : '-') + '</div>' +
+                        '<div><strong>Sit. Familiale :</strong> ' + (d.demandeur.situationFamiliale ? d.demandeur.situationFamiliale.libelle : '-') + '</div>' +
                         '<div><strong>Téléphone :</strong> ' + d.demandeur.telephone + '</div>' +
                         '<div><strong>Email :</strong> ' + d.demandeur.email + '</div>' +
-                        '<div><strong>Lieu entrée :</strong> ' + (d.visaTransformable ? d.visaTransformable.lieuEntree : '-') + '</div>' +
-                        '<div><strong>Date entrée :</strong> ' + (d.visaTransformable ? d.visaTransformable.dateEntree : '-') + '</div>';
+                        '<div><strong>Adresse :</strong> ' + d.demandeur.adresse + '</div>';
+                    
+                    // Section Demande
+                    document.getElementById('info-demande').innerHTML = 
+                        '<div><strong>N° Demande :</strong> #' + d.id + '</div>' +
+                        '<div><strong>Date Demande :</strong> ' + d.dateDemande + '</div>' +
+                        '<div><strong>Type Demande :</strong> ' + d.typeDemande.libelle + '</div>' +
+                        '<div><strong>Type Visa :</strong> ' + d.typeIdentite.libelle + '</div>' +
+                        '<div><strong>Lieu Entrée :</strong> ' + (d.visaTransformable ? d.visaTransformable.lieuEntree : '-') + '</div>' +
+                        '<div><strong>Date Entrée :</strong> ' + (d.visaTransformable ? d.visaTransformable.dateEntree : '-') + '</div>';
+
+                    // Charger les passeports
+                    chargerPasseports(d.demandeur.id);
                 }
             })
             .catch(err => {
@@ -167,6 +203,84 @@
                 if (err.message === 'Dossier introuvable') {
                     window.location.href = "/demande/liste";
                 }
+            });
+    }
+
+    function chargerDocuments() {
+        fetch('/api/dossiers/' + dossierId + '/documents')
+            .then(res => res.json())
+            .then(data => {
+                const container = document.getElementById('info-documents');
+                const section = document.getElementById('section-documents');
+                
+                const hasVisas = data.visas && data.visas.length > 0;
+                const hasCartes = data.cartes && data.cartes.length > 0;
+
+                if (!hasVisas && !hasCartes) {
+                    section.style.display = 'none';
+                    return;
+                }
+
+                section.style.display = 'block';
+                let html = '<table class="history-table">' +
+                           '<thead><tr><th>Type</th><th>Référence</th><th>Validité</th></tr></thead>' +
+                           '<tbody>';
+                
+                if (hasVisas) {
+                    data.visas.forEach(v => {
+                        html += '<tr>' +
+                                '  <td><span class="document-badge">VISA</span></td>' +
+                                '  <td><strong>' + v.reference + '</strong></td>' +
+                                '  <td>Du ' + v.dateDebut + ' au ' + v.dateFin + '</td>' +
+                                '</tr>';
+                    });
+                }
+
+                if (hasCartes) {
+                    data.cartes.forEach(c => {
+                        html += '<tr>' +
+                                '  <td><span class="document-badge" style="background:#e83e8c;">CARTE</span></td>' +
+                                '  <td><strong>' + c.reference + '</strong></td>' +
+                                '  <td>Du ' + c.dateDebut + ' au ' + c.dateFin + '</td>' +
+                                '</tr>';
+                    });
+                }
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            })
+            .catch(err => console.error("Erreur documents", err));
+    }
+
+    function chargerPasseports(demandeurId) {
+        fetch('/api/passeports/demandeur/' + demandeurId)
+            .then(res => res.json())
+            .then(data => {
+                const container = document.getElementById('info-passeports');
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p>Aucun passeport enregistré pour ce demandeur.</p>';
+                    return;
+                }
+
+                let html = '<table class="history-table">' +
+                           '<thead><tr><th>N° Passeport</th><th>Pays</th><th>Délivrance</th><th>Expiration</th></tr></thead>' +
+                           '<tbody>';
+                
+                data.forEach(p => {
+                    html += '<tr>' +
+                            '  <td><strong>' + p.numeroPasseport + '</strong></td>' +
+                            '  <td>' + (p.paysDelivrance ? p.paysDelivrance.libelle : '-') + '</td>' +
+                            '  <td>' + p.dateDelivrance + '</td>' +
+                            '  <td>' + p.dateExpiration + '</td>' +
+                            '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Erreur passeports", err);
+                document.getElementById('info-passeports').innerHTML = '<p style="color:red;">Erreur lors du chargement des passeports.</p>';
             });
     }
 

@@ -306,18 +306,64 @@
         } else container.style.display = 'none';
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
-        fetch('/api/ref/nationalites').then(r => r.json()).then(data => {
-            data.forEach(n => {
-                document.getElementById('nationalite_id').innerHTML += `<option value="${n.id}">${n.libelle}</option>`;
-                document.getElementById('pays_delivrance_id').innerHTML += `<option value="${n.id}">${n.libelle}</option>`;
-            });
-        });
-        fetch('/api/ref/situations-familiales').then(r => r.json()).then(data => data.forEach(s => document.getElementById('situation_familiale_id').innerHTML += `<option value="${s.id}">${s.libelle}</option>`));
-        fetch('/api/ref/types-identite').then(r => r.json()).then(data => data.forEach(t => document.getElementById('type_visa_id').innerHTML += `<option value="${t.id}">${t.libelle}</option>`));
-        fetch('/api/ref/pieces-communes').then(r => r.json()).then(data => window.piecesCommunes = data);
-        fetch('/api/ref/pieces-complementaires').then(r => r.json()).then(data => window.piecesComplementaires = data);
-    });
+    async function loadReferenceData() {
+        try {
+            console.log("Chargement des données de référence...");
+            
+            // 1. Nationalités
+            const resNat = await fetch('/api/ref/nationalites');
+            if (resNat.ok) {
+                const data = await resNat.json();
+                const natSelect = document.getElementById('nationalite_id');
+                const paysSelect = document.getElementById('pays_delivrance_id');
+                if (natSelect && paysSelect) {
+                    data.forEach(n => {
+                        natSelect.add(new Option(n.libelle, n.id));
+                        paysSelect.add(new Option(n.libelle, n.id));
+                    });
+                }
+            }
+
+            // 2. Situations Familiales
+            const resSit = await fetch('/api/ref/situations-familiales');
+            if (resSit.ok) {
+                const data = await resSit.json();
+                const sitSelect = document.getElementById('situation_familiale_id');
+                if (sitSelect) {
+                    data.forEach(s => {
+                        sitSelect.add(new Option(s.libelle, s.id));
+                    });
+                }
+            }
+
+            // 3. Types d'Identité
+            const resType = await fetch('/api/ref/types-identite');
+            if (resType.ok) {
+                const data = await resType.json();
+                const typeSelect = document.getElementById('type_visa_id');
+                if (typeSelect) {
+                    data.forEach(t => {
+                        typeSelect.add(new Option(t.libelle, t.id));
+                    });
+                }
+            }
+
+            // 4. Catalogues de pièces
+            const [resComm, resComp] = await Promise.all([
+                fetch('/api/ref/pieces-communes'),
+                fetch('/api/ref/pieces-complementaires')
+            ]);
+            
+            if (resComm.ok) window.piecesCommunes = await resComm.json();
+            if (resComp.ok) window.piecesComplementaires = await resComp.json();
+
+            console.log("Données de référence chargées avec succès.");
+        } catch (error) {
+            console.error("Erreur critique lors du chargement des données:", error);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadReferenceData);
 
     async function submitForm(e) {
         e.preventDefault();

@@ -19,6 +19,7 @@ INSERT INTO nationalite (code, libelle) VALUES
     ('MG', 'Malgache'), ('FR', 'Française'),
     ('US', 'Américaine');
 
+
 -- ------------------------------------------------
 
 CREATE TABLE situation_familiale (

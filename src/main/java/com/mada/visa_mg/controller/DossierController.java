@@ -458,6 +458,17 @@ public class DossierController {
         return new DossierPiecesDTO(communes, complementaires);
     }
 
+    @GetMapping("/{id}/documents")
+    public java.util.Map<String, Object> getDocuments(@PathVariable Integer id) {
+        List<Visa> visas = visaRepository.findByDossierId(id);
+        List<CarteResident> cartes = carteResidentRepository.findByDossierId(id);
+        
+        java.util.Map<String, Object> docs = new java.util.HashMap<>();
+        docs.put("visas", visas);
+        docs.put("cartes", cartes);
+        return docs;
+    }
+
     @GetMapping("/{id}/historique")
     public List<DossierStatutHistorique> getHistorique(@PathVariable Integer id) {
         return dossierStatutHistoriqueRepository.findByDossierIdOrderByDateChangementStatutDesc(id);
