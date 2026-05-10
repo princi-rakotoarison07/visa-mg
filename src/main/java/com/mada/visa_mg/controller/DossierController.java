@@ -150,7 +150,8 @@ public class DossierController {
 
         List<CataloguePieceCommune> piecesCommunes = cataloguePieceCommuneRepository.findAll();
         for (CataloguePieceCommune cat : piecesCommunes) {
-            boolean isCochee = communesCochees == null || communesCochees.contains(cat.getId());
+            boolean isAlwaysRequired = "WEBCAM".equals(cat.getCode()) || "SIGNATURE".equals(cat.getCode());
+            boolean isCochee = isAlwaysRequired || communesCochees == null || communesCochees.contains(cat.getId());
             DossierPieceCommune piece = DossierPieceCommune.builder()
                     .dossier(dossier)
                     .cataloguePiece(cat)
@@ -452,7 +453,36 @@ public class DossierController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable");
         }
 
+        StatutPiece nonFourni = statutPieceRepository.findByCode("NON_FOURNI")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "StatutPiece NON_FOURNI manquant"));
+
         List<DossierPieceCommune> communes = dossierPieceCommuneRepository.findByDossierId(id);
+
+        java.util.Set<String> existingCommuneCodes = new java.util.HashSet<>();
+        for (DossierPieceCommune pc : communes) {
+            if (pc.getCataloguePiece() != null && pc.getCataloguePiece().getCode() != null) {
+                existingCommuneCodes.add(pc.getCataloguePiece().getCode());
+            }
+        }
+
+        java.util.List<CataloguePieceCommune> catalogueCommunes = cataloguePieceCommuneRepository.findAll();
+        for (CataloguePieceCommune cat : catalogueCommunes) {
+            if ("WEBCAM".equals(cat.getCode()) || "SIGNATURE".equals(cat.getCode())) {
+                if (!existingCommuneCodes.contains(cat.getCode())) {
+                    Dossier dossier = dossierRepository.findById(id)
+                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dossier introuvable"));
+
+                    DossierPieceCommune piece = DossierPieceCommune.builder()
+                            .dossier(dossier)
+                            .cataloguePiece(cat)
+                            .statutPiece(nonFourni)
+                            .build();
+                    dossierPieceCommuneRepository.save(piece);
+                }
+            }
+        }
+
+        communes = dossierPieceCommuneRepository.findByDossierId(id);
         List<DossierPieceComplementaire> complementaires = dossierPieceComplementaireRepository.findByDossierId(id);
 
         return new DossierPiecesDTO(communes, complementaires);
@@ -696,6 +726,13 @@ public class DossierController {
 
         if (!piece.getDossier().getId().equals(dossierId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La pièce n'appartient pas à ce dossier");
+        }
+
+        if (piece.getCataloguePiece() != null) {
+            String code = piece.getCataloguePiece().getCode();
+            if ("WEBCAM".equals(code) || "SIGNATURE".equals(code)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cette pièce est obligatoire");
+            }
         }
 
         boolean applicable = Boolean.TRUE.equals(body.get("applicable"));

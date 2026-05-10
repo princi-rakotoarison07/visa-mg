@@ -87,6 +87,34 @@
                     <div>Chargement des pièces...</div>
                 </div>
 
+                <div id="capture-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+                    <div style="background:#fff; padding:20px; border-radius:8px; width:min(720px, 95vw); max-height:90vh; overflow:auto;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h3 id="capture-title" style="margin:0;">Capture</h3>
+                            <button type="button" class="btn-retour" style="border:none;" onclick="closeCaptureModal()">Fermer</button>
+                        </div>
+
+                        <div id="webcam-panel" style="display:none;">
+                            <video id="webcam-video" autoplay playsinline style="width:100%; border:1px solid #ddd; border-radius:6px;"></video>
+                            <canvas id="webcam-canvas" style="display:none;"></canvas>
+                            <div style="display:flex; gap:10px; margin-top:10px;">
+                                <button type="button" class="upload-btn" onclick="captureWebcamPhoto()">Capturer</button>
+                                <button type="button" class="upload-btn" onclick="saveWebcamPhoto()">Enregistrer</button>
+                            </div>
+                            <div id="webcam-status" style="margin-top:10px; color:#555;"></div>
+                        </div>
+
+                        <div id="signature-panel" style="display:none;">
+                            <canvas id="signature-canvas" style="width:100%; height:220px; border:1px solid #ddd; border-radius:6px; touch-action:none;"></canvas>
+                            <div style="display:flex; gap:10px; margin-top:10px;">
+                                <button type="button" class="upload-btn" onclick="clearSignature()">Effacer</button>
+                                <button type="button" class="upload-btn" onclick="saveSignature()">Enregistrer</button>
+                            </div>
+                            <div id="signature-status" style="margin-top:10px; color:#555;"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="action-buttons">
                     <button id="btn-scan" class="btn-scan" disabled onclick="terminerScan()">Mettre le statut "Scan terminé"</button>
                 </div>
@@ -127,6 +155,13 @@
     const dossierId = urlParams.get('id');
     let totalObligatoire = 0;
     let fournisObligatoire = 0;
+
+    let currentCapturePieceId = null;
+    let webcamStream = null;
+    let webcamCapturedBlob = null;
+    let signatureDrawing = false;
+    let signatureLastX = 0;
+    let signatureLastY = 0;
 
     if (!dossierId) {
         alert("ID du dossier manquant !");
@@ -327,6 +362,8 @@
         const isFourni = statutCode === 'FOURNI';
         const isApplicable = statutCode !== 'NON_APPLICABLE';
         const isObligatoire = (type === 'commune') ? true : (cat.estObligatoire !== false);
+        const code = (cat && cat.code) ? cat.code : null;
+        const isCaptureRequired = (type === 'commune') && (code === 'WEBCAM' || code === 'SIGNATURE');
         
         let html = '';
         
@@ -345,17 +382,24 @@
         } else if (isFourni) {
             actionHtml = '<a href="/api/files/' + p.fichierPath + '" target="_blank" style="margin-right:10px;">Voir le fichier</a>';
         } else {
-            actionHtml = 
-                '<input type="file" id="file-' + type + '-' + p.id + '" style="display:none;" onchange="uploadFichier(this, ' + p.id + ', \'' + type + '\')" />' +
-                '<button type="button" class="upload-btn" onclick="document.getElementById(\'file-' + type + '-' + p.id + '\').click()">Choisir fichier</button>';
+            if (type === 'commune' && code === 'WEBCAM') {
+                actionHtml = '<button type="button" class="upload-btn" onclick="openWebcamCapture(' + p.id + ')">Webcam</button>';
+            } else if (type === 'commune' && code === 'SIGNATURE') {
+                actionHtml = '<button type="button" class="upload-btn" onclick="openSignatureCapture(' + p.id + ')">Signer</button>';
+            } else {
+                actionHtml =
+                    '<input type="file" id="file-' + type + '-' + p.id + '" style="display:none;" onchange="uploadFichier(this, ' + p.id + ', \'' + type + '\')" />' +
+                    '<button type="button" class="upload-btn" onclick="document.getElementById(\'file-' + type + '-' + p.id + '\').click()">Choisir fichier</button>';
+            }
         }
 
         const checkedAttr = isApplicable ? 'checked' : '';
+        const disabledAttr = isCaptureRequired ? 'disabled' : '';
 
         html += '<div class="checklist-item ' + cssClass + '">' +
                 '  <div>' +
                 '    <label style="display:flex; align-items:center; gap:10px;">' +
-                '      <input type="checkbox" ' + checkedAttr + ' onchange="toggleApplicable(' + p.id + ', \'' + type + '\', this.checked)" />' +
+                '      <input type="checkbox" ' + checkedAttr + ' ' + disabledAttr + ' onchange="toggleApplicable(' + p.id + ', \'' + type + '\', this.checked)" />' +
                 '      ' + iconInfo + ' <strong>' + cat.libelle + '</strong>' +
                 '      ' + (isObligatoire ? '<span style="color:red;font-size:0.8rem;">*</span>' : '<span style="color:gray;font-size:0.8rem;">(facultatif)</span>') +
                 '    </label>' +
@@ -441,6 +485,201 @@
             chargerDossier();
         })
         .catch(err => alert("Erreur: " + err.message));
+    }
+
+    function openCaptureModal() {
+        document.getElementById('capture-modal').style.display = 'flex';
+    }
+
+    function closeCaptureModal() {
+        document.getElementById('capture-modal').style.display = 'none';
+        document.getElementById('webcam-panel').style.display = 'none';
+        document.getElementById('signature-panel').style.display = 'none';
+        document.getElementById('webcam-status').innerText = '';
+        document.getElementById('signature-status').innerText = '';
+        webcamCapturedBlob = null;
+        stopWebcam();
+    }
+
+    function stopWebcam() {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(t => t.stop());
+            webcamStream = null;
+        }
+    }
+
+    function openWebcamCapture(pieceId) {
+        currentCapturePieceId = pieceId;
+        document.getElementById('capture-title').innerText = 'Capture webcam';
+        document.getElementById('signature-panel').style.display = 'none';
+        document.getElementById('webcam-panel').style.display = 'block';
+        document.getElementById('webcam-status').innerText = 'Autorisez la caméra puis capturez une photo.';
+        openCaptureModal();
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                webcamStream = stream;
+                const video = document.getElementById('webcam-video');
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                document.getElementById('webcam-status').innerText = "Accès caméra refusé/indisponible : " + err.message;
+            });
+    }
+
+    function captureWebcamPhoto() {
+        const video = document.getElementById('webcam-video');
+        const canvas = document.getElementById('webcam-canvas');
+        if (!video || video.videoWidth === 0) {
+            document.getElementById('webcam-status').innerText = 'Webcam non prête.';
+            return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(blob => {
+            webcamCapturedBlob = blob;
+            document.getElementById('webcam-status').innerText = 'Photo capturée. Cliquez sur Enregistrer.';
+        }, 'image/png');
+    }
+
+    function saveWebcamPhoto() {
+        if (!currentCapturePieceId) return;
+        if (!webcamCapturedBlob) {
+            document.getElementById('webcam-status').innerText = 'Veuillez capturer une photo d\'abord.';
+            return;
+        }
+
+        const file = new File([webcamCapturedBlob], 'webcam.png', { type: 'image/png' });
+        uploadGeneratedFileToPiece(file, currentCapturePieceId, 'commune')
+            .then(() => {
+                closeCaptureModal();
+                chargerPieces();
+            })
+            .catch(err => {
+                document.getElementById('webcam-status').innerText = 'Erreur : ' + err.message;
+            });
+    }
+
+    function openSignatureCapture(pieceId) {
+        currentCapturePieceId = pieceId;
+        document.getElementById('capture-title').innerText = 'Signature (trackpad)';
+        document.getElementById('webcam-panel').style.display = 'none';
+        document.getElementById('signature-panel').style.display = 'block';
+        document.getElementById('signature-status').innerText = 'Signez sur le pavé (ou souris), puis Enregistrer.';
+        openCaptureModal();
+        initSignatureCanvas();
+        clearSignature();
+    }
+
+    function initSignatureCanvas() {
+        const canvas = document.getElementById('signature-canvas');
+        if (!canvas.__initialized) {
+            canvas.__initialized = true;
+
+            canvas.addEventListener('pointerdown', (e) => {
+                signatureDrawing = true;
+                const pos = getCanvasPos(canvas, e);
+                signatureLastX = pos.x;
+                signatureLastY = pos.y;
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (!signatureDrawing) return;
+                const ctx = canvas.getContext('2d');
+                const pos = getCanvasPos(canvas, e);
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = '#111';
+                ctx.beginPath();
+                ctx.moveTo(signatureLastX, signatureLastY);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                signatureLastX = pos.x;
+                signatureLastY = pos.y;
+            });
+
+            const end = () => { signatureDrawing = false; };
+            canvas.addEventListener('pointerup', end);
+            canvas.addEventListener('pointercancel', end);
+            canvas.addEventListener('pointerleave', end);
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        const targetWidth = Math.max(1, Math.floor(rect.width));
+        const targetHeight = Math.max(1, Math.floor(rect.height));
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+        }
+    }
+
+    function getCanvasPos(canvas, e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function clearSignature() {
+        const canvas = document.getElementById('signature-canvas');
+        initSignatureCanvas();
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function saveSignature() {
+        if (!currentCapturePieceId) return;
+        const canvas = document.getElementById('signature-canvas');
+        canvas.toBlob(blob => {
+            if (!blob) {
+                document.getElementById('signature-status').innerText = 'Impossible de générer l\'image.';
+                return;
+            }
+            const file = new File([blob], 'signature.png', { type: 'image/png' });
+            uploadGeneratedFileToPiece(file, currentCapturePieceId, 'commune')
+                .then(() => {
+                    closeCaptureModal();
+                    chargerPieces();
+                })
+                .catch(err => {
+                    document.getElementById('signature-status').innerText = 'Erreur : ' + err.message;
+                });
+        }, 'image/png');
+    }
+
+    function uploadGeneratedFileToPiece(file, pieceId, type) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        return fetch('/api/uploads', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Erreur lors de l'upload du fichier");
+            return res.json();
+        })
+        .then(data => {
+            const fichierPath = data.fichierPath;
+            const endpt = type === 'commune' ? 'pieces-communes' : 'pieces-complementaires';
+            return fetch('/api/dossiers/' + dossierId + '/' + endpt + '/' + pieceId + '/upload', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fichierPath: fichierPath })
+            });
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Erreur de mise à jour de la pièce');
+        });
     }
 
     // -- Pour le sprint suivant, la partie approbation/rejet
